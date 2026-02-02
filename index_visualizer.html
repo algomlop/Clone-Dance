@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clone Dance- Visualizador de Coreografías</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Header estilo Just Dance */
+        .header {
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            text-align: center;
+            border-bottom: 3px solid #ff006e;
+            box-shadow: 0 4px 20px rgba(255, 0, 110, 0.3);
+        }
+
+        .header h1 {
+            color: #fff;
+            font-size: 3em;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            text-shadow: 0 0 20px #ff006e, 0 0 40px #ff006e;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        /* Container principal */
+        .container {
+            max-width: 1400px;
+            margin: 30px auto;
+            padding: 20px;
+        }
+
+        /* Panel de carga */
+        .upload-panel {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            margin-bottom: 30px;
+        }
+
+        .upload-panel h2 {
+            color: #667eea;
+            font-size: 2em;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .file-inputs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .file-input-group {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 15px;
+            padding: 20px;
+            color: white;
+            text-align: center;
+            cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .file-input-group:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.5);
+        }
+
+        .file-input-group label {
+            display: block;
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 10px;
+            cursor: pointer;
+        }
+
+        .file-input-group input[type="file"] {
+            display: none;
+        }
+
+        .file-name {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-size: 0.9em;
+            min-height: 40px;
+        }
+
+        .btn-load {
+            background: linear-gradient(135deg, #ff006e 0%, #ff5e92 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.3em;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            display: block;
+            margin: 20px auto 0;
+            transition: all 0.3s;
+            box-shadow: 0 5px 20px rgba(255, 0, 110, 0.4);
+        }
+
+        .btn-load:hover {
+            transform: scale(1.1);
+            box-shadow: 0 8px 30px rgba(255, 0, 110, 0.6);
+        }
+
+        .btn-load:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: scale(1);
+        }
+
+        /* Visualizador principal */
+        .visualizer {
+            display: none;
+            background: rgba(0, 0, 0, 0.8);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+
+        .video-container {
+            position: relative;
+            background: #000;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            box-shadow: 0 0 40px rgba(255, 0, 110, 0.5);
+        }
+
+#videoCanvas {
+    width: 100%;
+    height: auto;
+    display: block;
+    background-color: #000; /* Fondo negro por si el video tarda en cargar */
+    min-height: 400px; /* Asegura un espacio visual mínimo */
+}
+
+        /* Controles */
+        .controls {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .controls-row {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .play-btn {
+            background: linear-gradient(135deg, #00f260 0%, #0575e6 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 1.1em;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(0, 242, 96, 0.4);
+        }
+
+        .play-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .timeline {
+            flex: 1;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .timeline-progress {
+            height: 100%;
+            background: linear-gradient(90deg, #ff006e, #ff5e92, #ffd700);
+            border-radius: 4px;
+            transition: width 0.1s;
+        }
+
+        .time-display {
+            color: white;
+            font-weight: bold;
+            font-size: 1.1em;
+            min-width: 120px;
+            text-align: right;
+        }
+
+        /* Configuración visual */
+        .visual-config {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .config-item {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 15px;
+        }
+
+        .config-item label {
+            color: white;
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+
+        .config-item input[type="range"] {
+            width: 100%;
+        }
+
+        .config-item input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .config-item select {
+            width: 100%;
+            padding: 8px;
+            border-radius: 5px;
+            border: none;
+            background: rgba(255, 255, 255, 0.9);
+            cursor: pointer;
+        }
+
+        /* Info panel */
+        .info-panel {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            color: white;
+        }
+
+        .info-panel h3 {
+            color: #ffd700;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+
+        .pose-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .pose-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 10px;
+            border-radius: 10px;
+            text-align: center;
+            font-weight: bold;
+            transition: transform 0.3s;
+        }
+
+        .pose-badge:hover {
+            transform: scale(1.05);
+        }
+
+        .pose-badge.active {
+            background: linear-gradient(135deg, #ff006e 0%, #ff5e92 100%);
+            animation: glow 1s ease-in-out infinite;
+        }
+
+        @keyframes glow {
+            0%, 100% { box-shadow: 0 0 10px rgba(255, 0, 110, 0.5); }
+            50% { box-shadow: 0 0 20px rgba(255, 0, 110, 1); }
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .stat-box {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #ffd700;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            color: rgba(255, 255, 255, 0.7);
+            margin-top: 5px;
+        }
+
+        /* Loading spinner */
+        .loading {
+            display: none;
+            text-align: center;
+            color: white;
+            font-size: 1.5em;
+            margin: 20px 0;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #ff006e;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>CLONE DANCE VISUALIZER</h1>
+    </div>
+
+    <div class="container">
+        <!-- Panel de carga -->
+        <div class="upload-panel">
+            <h2>📂 Cargar Coreografía</h2>
+            <div class="file-inputs">
+                <div class="file-input-group" onclick="document.getElementById('videoInput').click()">
+                    <label>🎬 Video MP4</label>
+                    <input type="file" id="videoInput" accept="video/mp4">
+                    <div class="file-name" id="videoFileName">Sin seleccionar</div>
+                </div>
+                <div class="file-input-group" onclick="document.getElementById('jsonInput').click()">
+                    <label>📋 Coreografía JSON</label>
+                    <input type="file" id="jsonInput" accept="application/json">
+                    <div class="file-name" id="jsonFileName">Sin seleccionar</div>
+                </div>
+            </div>
+            <button class="btn-load" id="loadBtn" disabled>🚀 CARGAR Y VISUALIZAR</button>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Cargando coreografía...</p>
+        </div>
+
+        <!-- Visualizador -->
+        <div class="visualizer" id="visualizer">
+            <div class="video-container">
+                <canvas id="videoCanvas"></canvas>
+            </div>
+
+            <div class="controls">
+                <div class="controls-row">
+                    <button class="play-btn" id="playBtn">▶️ PLAY</button>
+                    <div class="timeline" id="timeline">
+                        <div class="timeline-progress" id="timelineProgress"></div>
+                    </div>
+                    <div class="time-display" id="timeDisplay">0:00 / 0:00</div>
+                </div>
+
+                <div class="visual-config">
+                    <div class="config-item">
+                        <label>🎨 Color Esqueleto</label>
+                        <select id="skeletonColor">
+                            <option value="#00ff00">Verde Neón</option>
+                            <option value="#ff006e">Rosa Neón</option>
+                            <option value="#ffd700">Dorado</option>
+                            <option value="#00f5ff">Cian</option>
+                            <option value="#ff4500">Naranja</option>
+                            <option value="#ffffff">Blanco</option>
+                        </select>
+                    </div>
+                    <div class="config-item">
+                        <label>📏 Grosor: <span id="thicknessValue">3</span>px</label>
+                        <input type="range" id="lineThickness" min="1" max="10" value="3">
+                    </div>
+                    <div class="config-item">
+                        <label>✨ Opacidad: <span id="opacityValue">100</span>%</label>
+                        <input type="range" id="skeletonOpacity" min="0" max="100" value="100">
+                    </div>
+                    <div class="config-item">
+                        <label>
+                            <input type="checkbox" id="showKeyPoses" checked>
+                            Mostrar Key Poses
+                        </label>
+                    </div>
+                    <div class="config-item">
+                        <label>
+                            <input type="checkbox" id="showConnections" checked>
+                            Mostrar Conexiones
+                        </label>
+                    </div>
+                    <div class="config-item">
+                        <label>
+                            <input type="checkbox" id="showLabels" checked>
+                            Mostrar Etiquetas
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="info-panel">
+                <h3>📊 Información de la Coreografía</h3>
+                <div class="stats">
+                    <div class="stat-box">
+                        <div class="stat-value" id="totalPoses">0</div>
+                        <div class="stat-label">Poses Clave</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="currentPose">-</div>
+                        <div class="stat-label">Pose Actual</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="avgGap">0s</div>
+                        <div class="stat-label">Intervalo Promedio</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="difficulty">-</div>
+                        <div class="stat-label">Dificultad</div>
+                    </div>
+                </div>
+                <div class="pose-info" id="poseTimeline"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="visualizer.js"></script>
+</body>
+</html>

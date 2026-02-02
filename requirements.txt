@@ -1,0 +1,13 @@
+# Dependencias del proyecto Dance Game - Backend v3
+
+# MediaPipe para detección de poses (Pose Landmarker)
+mediapipe>=0.10.32
+
+# OpenCV para procesamiento de video
+opencv-python>=4.8.1
+
+# NumPy para cálculos numéricos
+numpy>=1.24.3
+
+# Scikit-learn para k-NN classifier
+scikit-learn>=1.3.2

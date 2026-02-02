@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>💃 Just Dance Clone</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;500;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --neon-pink: #ff0080;
+            --neon-blue: #00d4ff;
+            --neon-green: #00ff88;
+            --neon-purple: #b967ff;
+            --dark-bg: #0a0a0f;
+            --dark-surface: #1a1a2e;
+        }
+        
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background: linear-gradient(135deg, #0a0a0f 0%, #1a0a2e 100%);
+            color: white;
+            overflow: hidden;
+            height: 100vh;
+        }
+        
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                linear-gradient(90deg, rgba(0, 212, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(rgba(0, 212, 255, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            animation: gridMove 20s linear infinite;
+            pointer-events: none;
+            z-index: 0;
+        }
+        
+        @keyframes gridMove {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(50px, 50px); }
+        }
+        
+        #app {
+            position: relative;
+            z-index: 1;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        header {
+            padding: 20px;
+            background: rgba(26, 26, 46, 0.8);
+            border-bottom: 2px solid var(--neon-pink);
+            box-shadow: 0 0 20px rgba(255, 0, 128, 0.3);
+            backdrop-filter: blur(10px);
+        }
+        
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 900;
+            background: linear-gradient(45deg, var(--neon-pink), var(--neon-blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 30px rgba(255, 0, 128, 0.5);
+            letter-spacing: 2px;
+        }
+        
+        .score-display {
+            display: flex;
+            gap: 30px;
+            align-items: center;
+        }
+        
+        .stat {
+            text-align: center;
+        }
+        
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--neon-blue);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .stat-value {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--neon-green);
+            text-shadow: 0 0 15px rgba(0, 255, 136, 0.8);
+        }
+        
+        .game-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        
+        .main-panel {
+            position: relative;
+            background: rgba(26, 26, 46, 0.6);
+            border-radius: 15px;
+            overflow: hidden;
+            border: 2px solid var(--neon-blue);
+            box-shadow: 0 0 30px rgba(0, 212, 255, 0.2);
+            backdrop-filter: blur(5px);
+            width: 100%;
+            max-width: 1200px;
+            height: 100%;
+        }
+        
+        .panel-header {
+            background: rgba(0, 212, 255, 0.1);
+            padding: 10px 20px;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            border-bottom: 2px solid var(--neon-blue);
+            font-size: 0.9rem;
+        }
+        
+        canvas {
+            position: absolute;
+            top: 50px;
+            left: 0;
+            width: 100%;
+            height: calc(100% - 50px);
+            display: block;
+            pointer-events: none;
+            z-index: 2;
+        }
+        
+        video {
+            width: 100%;
+            height: calc(100% - 50px);
+            display: block;
+            object-fit: contain;
+            background: #000;
+        }
+        
+        .webcam-hidden {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+            width: 1px;
+            height: 1px;
+        }
+        
+        /* Calibration screen */
+        .calibration-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(10, 10, 15, 0.95);
+            backdrop-filter: blur(10px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        
+        .calibration-screen.active {
+            display: flex;
+        }
+        
+        .calibration-content {
+            text-align: center;
+            max-width: 800px;
+            padding: 40px;
+        }
+        
+        .calibration-content h2 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2rem;
+            margin-bottom: 20px;
+            color: var(--neon-pink);
+            text-shadow: 0 0 20px rgba(255, 0, 128, 0.6);
+        }
+        
+        .calibration-preview {
+            position: relative;
+            width: 640px;
+            height: 480px;
+            margin: 20px auto;
+            background: #000;
+            border-radius: 10px;
+            border: 2px solid var(--neon-blue);
+            overflow: hidden;
+        }
+        
+        .calibration-canvas {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .calibration-status {
+            margin-top: 20px;
+            padding: 20px;
+            background: rgba(26, 26, 46, 0.8);
+            border-radius: 10px;
+            border: 2px solid var(--neon-blue);
+        }
+        
+        .status-text {
+            font-size: 1.2rem;
+            color: var(--neon-blue);
+            margin-bottom: 10px;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 15px;
+            overflow: hidden;
+            border: 2px solid var(--neon-blue);
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--neon-blue), var(--neon-green));
+            width: 0%;
+            transition: width 0.3s ease;
+            box-shadow: 0 0 20px var(--neon-green);
+        }
+        
+        .calibration-hint {
+            margin-top: 15px;
+            color: #888;
+            font-size: 0.9rem;
+        }
+        
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            z-index: 10;
+        }
+        
+        button {
+            font-family: 'Orbitron', sans-serif;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(45deg, var(--neon-pink), var(--neon-purple));
+            color: white;
+            box-shadow: 0 0 20px rgba(255, 0, 128, 0.5);
+        }
+        
+        .btn-primary:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(255, 0, 128, 0.8);
+        }
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 2px solid var(--neon-blue);
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(0, 212, 255, 0.2);
+            border-color: var(--neon-green);
+        }
+        
+        .setup-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(10, 10, 15, 0.95);
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        
+        .setup-content {
+            background: rgba(26, 26, 46, 0.9);
+            padding: 50px;
+            border-radius: 20px;
+            border: 2px solid var(--neon-pink);
+            box-shadow: 0 0 50px rgba(255, 0, 128, 0.4);
+            max-width: 600px;
+            text-align: center;
+        }
+        
+        .setup-content h2 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2rem;
+            margin-bottom: 30px;
+            color: var(--neon-pink);
+            text-shadow: 0 0 20px rgba(255, 0, 128, 0.6);
+        }
+        
+        .file-input-group {
+            margin: 20px 0;
+            text-align: left;
+        }
+        
+        .file-input-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--neon-blue);
+            font-weight: 500;
+            text-transform: uppercase;
+            font-size: 0.9rem;
+            letter-spacing: 1px;
+        }
+        
+        input[type="file"], input[type="number"] {
+            width: 100%;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 2px solid var(--neon-blue);
+            border-radius: 8px;
+            color: white;
+            font-family: 'Rajdhani', sans-serif;
+        }
+        
+        input[type="file"]::file-selector-button {
+            background: var(--neon-blue);
+            color: var(--dark-bg);
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 700;
+            margin-right: 10px;
+        }
+        
+        .combo-indicator {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(185, 103, 255, 0.9);
+            padding: 15px 25px;
+            border-radius: 10px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 900;
+            display: none;
+            animation: pulse 0.5s ease-in-out infinite;
+            box-shadow: 0 0 30px rgba(185, 103, 255, 0.8);
+        }
+        
+        .combo-indicator.active {
+            display: block;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .loading.active {
+            display: block;
+        }
+        
+        .spinner {
+            border: 3px solid rgba(0, 212, 255, 0.3);
+            border-top: 3px solid var(--neon-blue);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        .feedback {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-family: 'Orbitron', sans-serif;
+            font-size: 4rem;
+            font-weight: 900;
+            opacity: 0;
+            pointer-events: none;
+            text-shadow: 0 0 30px currentColor;
+        }
+        
+        .feedback.show {
+            animation: feedbackPop 0.6s ease-out;
+        }
+        
+        @keyframes feedbackPop {
+            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+            50% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div id="setupScreen" class="setup-screen">
+            <div class="setup-content">
+                <h2>🎮 Setup Game</h2>
+                
+                <div class="file-input-group">
+                    <label>Video de Referencia (MP4)</label>
+                    <input type="file" id="videoFile" accept="video/mp4" required>
+                </div>
+                
+                <div class="file-input-group">
+                    <label>JSON de Movimientos (continuous)</label>
+                    <input type="file" id="jsonFile" accept="application/json" required>
+                </div>
+                
+                <div class="file-input-group">
+                    <label>Threshold de Precisión (0.0 - 1.0)</label>
+                    <input type="number" id="threshold" min="0" max="1" step="0.05" value="0.15">
+                    <small style="color: #888; display: block; margin-top: 5px;">
+                        Menor = más estricto | Mayor = más permisivo
+                    </small>
+                </div>
+                
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <p style="margin-top: 10px; color: var(--neon-blue);">Cargando MediaPipe...</p>
+                </div>
+                
+                <button class="btn-primary" id="startBtn" style="margin-top: 30px; width: 100%;">
+                    ▶ Iniciar Juego
+                </button>
+            </div>
+        </div>
+        
+        <div id="gameScreen" class="hidden">
+            <header>
+                <div class="header-content">
+                    <h1>💃 JUST DANCE</h1>
+                    <div class="score-display">
+                        <div class="stat">
+                            <div class="stat-label">Score</div>
+                            <div class="stat-value" id="score">0</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-label">Combo</div>
+                            <div class="stat-value" id="combo">0</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-label">Accuracy</div>
+                            <div class="stat-value" id="accuracy">0%</div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+            
+            <div class="game-container">
+                <div class="main-panel">
+                    <div class="panel-header">📹 Dance Match</div>
+                    <video id="referenceVideo" autoplay loop muted></video>
+                    <canvas id="playerCanvas"></canvas>
+                    <div class="combo-indicator" id="comboIndicator">COMBO x<span id="comboValue">0</span>!</div>
+                    <div class="feedback" id="feedback"></div>
+                </div>
+            </div>
+            
+            <div class="controls">
+                <button class="btn-primary" id="playPauseBtn">▶ Play</button>
+                <button class="btn-secondary" id="resetBtn">🔄 Reset</button>
+                <button class="btn-secondary" id="recalibrateBtn">⚙️ Recalibrate</button>
+            </div>
+        </div>
+        
+        <!-- Calibration Screen -->
+        <div id="calibrationScreen" class="calibration-screen">
+            <div class="calibration-content">
+                <h2>⚙️ Calibración Inicial</h2>
+                <p style="color: var(--neon-blue); margin-bottom: 20px;">
+                    Colócate en la pose inicial del video de referencia
+                </p>
+                
+                <div class="calibration-preview">
+                    <canvas id="calibrationCanvas" class="calibration-canvas"></canvas>
+                </div>
+                
+                <div class="calibration-status">
+                    <div class="status-text" id="calibrationStatus">
+                        Detectando pose inicial...
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="calibrationProgress"></div>
+                    </div>
+                    <div class="calibration-hint">
+                        Coincidencia necesaria: <span id="matchPercentage">0%</span>
+                    </div>
+                </div>
+                
+                <button class="btn-secondary" id="skipCalibrationBtn" style="margin-top: 20px;">
+                    Saltar calibración
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script>
+        let referenceData = null;
+        let pose = null;
+        let camera = null;
+        let videoElement = null;
+        let canvas = null;
+        let ctx = null;
+        let calibrationCanvas = null;
+        let calibrationCtx = null;
+        
+        let score = 0;
+        let combo = 0;
+        let totalFrames = 0;
+        let matchedFrames = 0;
+        let threshold = 0.15;
+        let isPlaying = false;
+        let isCalibrated = false;
+        let currentPlayerPose = null;
+        
+        // Normalización
+        let scaleFactorX = 1;
+        let scaleFactorY = 1;
+        let offsetX = 0;
+        let offsetY = 0;
+        
+        const POSE_CONNECTIONS = [
+            [11, 12], [11, 13], [13, 15], [12, 14], [14, 16],
+            [11, 23], [12, 24], [23, 24],
+            [23, 25], [25, 27], [24, 26], [26, 28],
+            [27, 29], [27, 31], [28, 30], [28, 32]
+        ];
+        
+        const SCORING_JOINTS = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
+        
+        // Calibration
+        let calibrationFrames = 0;
+        let calibrationThreshold = 0.7; // 70% match needed
+        
+        document.getElementById('startBtn').addEventListener('click', initGame);
+        document.getElementById('playPauseBtn').addEventListener('click', togglePlayPause);
+        document.getElementById('resetBtn').addEventListener('click', resetGame);
+        document.getElementById('recalibrateBtn').addEventListener('click', startCalibration);
+        document.getElementById('skipCalibrationBtn').addEventListener('click', skipCalibration);
+        // --- REEMPLAZA TU FUNCIÓN initGame Y onPoseResults CON ESTO ---
+
+async function initGame() {
+    const videoFile = document.getElementById('videoFile').files[0];
+    const jsonFile = document.getElementById('jsonFile').files[0];
+    threshold = parseFloat(document.getElementById('threshold').value);
+    
+    if (!videoFile || !jsonFile) {
+        alert('Por favor selecciona ambos archivos');
+        return;
+    }
+    
+    document.getElementById('loading').classList.add('active');
+    document.getElementById('startBtn').disabled = true;
+    
+    try {
+        console.log("Cargando JSON...");
+        const jsonText = await jsonFile.text();
+        referenceData = JSON.parse(jsonText);
+        
+        console.log("Configurando Video de Referencia...");
+        videoElement = document.getElementById('referenceVideo');
+        videoElement.src = URL.createObjectURL(videoFile);
+        
+        // Esperar a que el video cargue metadatos
+        await new Promise((resolve) => {
+            videoElement.onloadedmetadata = () => resolve();
+        });
+
+        console.log("Inicializando MediaPipe Pose...");
+        pose = new Pose({
+            locateFile: (file) => {
+                return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
+            }
+        });
+        
+        pose.setOptions({
+            modelComplexity: 1, // 1 es mejor balance que 0 para Just Dance
+            smoothLandmarks: true,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+        
+        pose.onResults(onPoseResults);
+        
+        console.log("Configurando Webcam...");
+        const videoEl = document.createElement('video');
+        videoEl.setAttribute('autoplay', '');
+        videoEl.setAttribute('muted', '');
+        videoEl.setAttribute('playsinline', '');
+        videoEl.classList.add('webcam-hidden');
+        document.body.appendChild(videoEl);
+
+        // Configurar Canvas
+        canvas = document.getElementById('playerCanvas');
+        ctx = canvas.getContext('2d');
+        calibrationCanvas = document.getElementById('calibrationCanvas');
+        calibrationCtx = calibrationCanvas.getContext('2d');
+
+        canvas.width = videoElement.videoWidth;
+        canvas.height = videoElement.videoHeight;
+
+        console.log("Iniciando Cámara...");
+        camera = new Camera(videoEl, {
+            onFrame: async () => {
+                await pose.send({image: videoEl});
+            },
+            width: 640,
+            height: 480
+        });
+
+        await camera.start();
+        console.log("Cámara lista.");
+
+        document.getElementById('loading').classList.remove('active');
+        document.getElementById('setupScreen').classList.add('hidden');
+        document.getElementById('gameScreen').classList.remove('hidden');
+        
+        startCalibration();
+        
+    } catch (error) {
+        console.error('Error detallado:', error);
+        alert('Error al iniciar: ' + error.message);
+        document.getElementById('loading').classList.remove('active');
+        document.getElementById('startBtn').disabled = false;
+    }
+} 
+        
+        function startCalibration() {
+            isCalibrated = false;
+            isPlaying = false;
+            calibrationFrames = 0;
+            videoElement.currentTime = 0;
+            videoElement.pause();
+            
+            document.getElementById('calibrationScreen').classList.add('active');
+            document.getElementById('calibrationStatus').textContent = 'Detectando pose inicial...';
+            document.getElementById('calibrationProgress').style.width = '0%';
+        }
+        
+        function skipCalibration() {
+            isCalibrated = true;
+            scaleFactorX = 1;
+            scaleFactorY = 1;
+            offsetX = 0;
+            offsetY = 0;
+            document.getElementById('calibrationScreen').classList.remove('active');
+        }
+        
+        function onPoseResults(results) {
+            if (results.poseLandmarks) {
+                currentPlayerPose = results.poseLandmarks;
+                
+                // If calibrating
+                if (!isCalibrated) {
+                    handleCalibration(results.poseLandmarks);
+                    return;
+                }
+            }
+            
+            // Draw on main canvas (overlay on video)
+            if (!isCalibrated) return;
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (currentPlayerPose) {
+                const referencePose = getCurrentReferencePose();
+                
+                if (referencePose && isPlaying) {
+                    const normalizedPlayerPose = normalizePose(currentPlayerPose);
+                    const comparison = comparePoses(normalizedPlayerPose, referencePose.landmarks);
+                    drawSkeletonOnVideo(normalizedPlayerPose, comparison.jointMatches);
+                } else {
+                    const normalizedPlayerPose = normalizePose(currentPlayerPose);
+                    const neutralMatches = SCORING_JOINTS.reduce((acc, idx) => {
+                        acc[idx] = null;
+                        return acc;
+                    }, {});
+                    drawSkeletonOnVideo(normalizedPlayerPose, neutralMatches);
+                }
+            }
+        }
+        
+        function handleCalibration(playerLandmarks) {
+            // Draw calibration preview
+            calibrationCtx.clearRect(0, 0, calibrationCanvas.width, calibrationCanvas.height);
+            
+            // Get first frame reference pose
+            const referencePose = getFirstReferencePose();
+            
+            if (!referencePose) {
+                document.getElementById('calibrationStatus').textContent = 'Error: No se encontró pose de referencia';
+                return;
+            }
+            
+            // Draw reference skeleton (semi-transparent)
+            drawCalibrationSkeleton(referencePose.landmarks, 'rgba(0, 212, 255, 0.5)');
+            
+            // Draw player skeleton
+            drawCalibrationSkeleton(playerLandmarks, '#00ff88');
+            
+            // Calculate match without normalization (just for initial alignment)
+            const rawComparison = comparePoses(playerLandmarks, referencePose.landmarks);
+            const matchPercentage = (rawComparison.accuracy * 100).toFixed(0);
+            
+            document.getElementById('matchPercentage').textContent = matchPercentage + '%';
+            document.getElementById('calibrationProgress').style.width = matchPercentage + '%';
+            
+            if (rawComparison.accuracy >= calibrationThreshold) {
+                calibrationFrames++;
+                document.getElementById('calibrationStatus').textContent = `¡Bien! Mantén la pose... (${calibrationFrames}/30)`;
+                
+                if (calibrationFrames >= 30) {
+                    // Calculate normalization factors
+                    calculateNormalization(playerLandmarks, referencePose.landmarks);
+                    isCalibrated = true;
+                    document.getElementById('calibrationScreen').classList.remove('active');
+                    
+                    // Show success feedback
+                    showFeedback('CALIBRADO!', '#00ff88');
+                }
+            } else {
+                calibrationFrames = 0;
+                document.getElementById('calibrationStatus').textContent = 'Coincidencia insuficiente. Ajusta tu pose...';
+            }
+        }
+        
+        function calculateNormalization(playerLandmarks, referenceLandmarks) {
+            // Calculate torso size for both poses
+            const playerTorso = getTorsoSize(playerLandmarks);
+            const refTorso = getTorsoSize(referenceLandmarks);
+            
+            // Scale factor based on torso size
+            scaleFactorX = refTorso.width / playerTorso.width;
+            scaleFactorY = refTorso.height / playerTorso.height;
+            
+            // Offset to center torso
+            const playerCenter = getTorsoCenter(playerLandmarks);
+            const refCenter = getTorsoCenter(referenceLandmarks);
+            
+            offsetX = refCenter.x - (playerCenter.x * scaleFactorX);
+            offsetY = refCenter.y - (playerCenter.y * scaleFactorY);
+            
+            console.log('Calibración:', { scaleFactorX, scaleFactorY, offsetX, offsetY });
+        }
+        
+        function getTorsoSize(landmarks) {
+            const leftShoulder = landmarks[11];
+            const rightShoulder = landmarks[12];
+            const leftHip = landmarks[23];
+            const rightHip = landmarks[24];
+            
+            const width = Math.abs(rightShoulder.x - leftShoulder.x);
+            const height = Math.abs((leftHip.y + rightHip.y) / 2 - (leftShoulder.y + rightShoulder.y) / 2);
+            
+            return { width, height };
+        }
+        
+        function getTorsoCenter(landmarks) {
+            const leftShoulder = landmarks[11];
+            const rightShoulder = landmarks[12];
+            const leftHip = landmarks[23];
+            const rightHip = landmarks[24];
+            
+            return {
+                x: (leftShoulder.x + rightShoulder.x + leftHip.x + rightHip.x) / 4,
+                y: (leftShoulder.y + rightShoulder.y + leftHip.y + rightHip.y) / 4
+            };
+        }
+        
+        function normalizePose(landmarks) {
+            return landmarks.map(lm => ({
+                x: lm.x * scaleFactorX + offsetX,
+                y: lm.y * scaleFactorY + offsetY,
+                z: lm.z,
+                visibility: lm.visibility
+            }));
+        }
+        
+        function getFirstReferencePose() {
+            const poses = referenceData.continuous_poses || referenceData.key_poses;
+            return poses && poses.length > 0 ? poses[0] : null;
+        }
+        
+        function drawCalibrationSkeleton(landmarks, color) {
+            calibrationCtx.lineWidth = 3;
+            calibrationCtx.strokeStyle = color;
+            
+            for (const [start, end] of POSE_CONNECTIONS) {
+                const startLm = landmarks[start];
+                const endLm = landmarks[end];
+                
+                if (startLm.visibility < 0.5 || endLm.visibility < 0.5) continue;
+                
+                calibrationCtx.beginPath();
+                calibrationCtx.moveTo(startLm.x * calibrationCanvas.width, startLm.y * calibrationCanvas.height);
+                calibrationCtx.lineTo(endLm.x * calibrationCanvas.width, endLm.y * calibrationCanvas.height);
+                calibrationCtx.stroke();
+            }
+            
+            calibrationCtx.fillStyle = color;
+            for (const lm of landmarks) {
+                if (lm.visibility < 0.5) continue;
+                calibrationCtx.beginPath();
+                calibrationCtx.arc(lm.x * calibrationCanvas.width, lm.y * calibrationCanvas.height, 5, 0, 2 * Math.PI);
+                calibrationCtx.fill();
+            }
+        }
+        
+        function gameLoop() {
+            if (currentPlayerPose && isPlaying && isCalibrated) {
+                const referencePose = getCurrentReferencePose();
+                if (referencePose) {
+                    const normalizedPlayerPose = normalizePose(currentPlayerPose);
+                    const comparison = comparePoses(normalizedPlayerPose, referencePose.landmarks);
+                    updateScore(comparison);
+                }
+            }
+            requestAnimationFrame(gameLoop);
+        }
+        
+        gameLoop();
+        
+        function togglePlayPause() {
+            if (!isCalibrated) {
+                alert('Por favor completa la calibración primero');
+                return;
+            }
+            
+            isPlaying = !isPlaying;
+            const btn = document.getElementById('playPauseBtn');
+            
+            if (isPlaying) {
+                videoElement.play();
+                btn.textContent = '⏸ Pause';
+            } else {
+                videoElement.pause();
+                btn.textContent = '▶ Play';
+            }
+        }
+        
+        function resetGame() {
+            score = 0;
+            combo = 0;
+            totalFrames = 0;
+            matchedFrames = 0;
+            videoElement.currentTime = 0;
+            isPlaying = false;
+            document.getElementById('playPauseBtn').textContent = '▶ Play';
+            updateUI();
+        }
+        
+        function getCurrentReferencePose() {
+            if (!referenceData || !videoElement) return null;
+            
+            const currentTime = videoElement.currentTime;
+            const poses = referenceData.continuous_poses || referenceData.key_poses;
+            
+            if (!poses || poses.length === 0) return null;
+            
+            let closest = poses[0];
+            let minDiff = Math.abs(currentTime - closest.timestamp);
+            
+            for (const pose of poses) {
+                const diff = Math.abs(currentTime - pose.timestamp);
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    closest = pose;
+                }
+            }
+            
+            if (minDiff > 0.1) return null;
+            return closest;
+        }
+        
+        function comparePoses(playerLandmarks, referenceLandmarks) {
+            const jointMatches = {};
+            let matchedJoints = 0;
+            let totalJoints = 0;
+            
+            for (const jointIdx of SCORING_JOINTS) {
+                const playerJoint = playerLandmarks[jointIdx];
+                const refJoint = referenceLandmarks[jointIdx];
+                
+                if (!playerJoint || !refJoint || playerJoint.visibility < 0.5 || refJoint.visibility < 0.5) {
+                    jointMatches[jointIdx] = null;
+                    continue;
+                }
+                
+                const distance = Math.sqrt(
+                    Math.pow(playerJoint.x - refJoint.x, 2) +
+                    Math.pow(playerJoint.y - refJoint.y, 2) +
+                    Math.pow(playerJoint.z - refJoint.z, 2)
+                );
+                
+                totalJoints++;
+                const isMatch = distance < threshold;
+                jointMatches[jointIdx] = isMatch;
+                
+                if (isMatch) matchedJoints++;
+            }
+            
+            const accuracy = totalJoints > 0 ? matchedJoints / totalJoints : 0;
+            return { jointMatches, accuracy, matchedJoints, totalJoints };
+        }
+        
+        function drawSkeletonOnVideo(landmarks, jointMatches) {
+            ctx.lineWidth = 5;
+            
+            for (const [start, end] of POSE_CONNECTIONS) {
+                const startLm = landmarks[start];
+                const endLm = landmarks[end];
+                
+                if (!startLm || !endLm || startLm.visibility < 0.5 || endLm.visibility < 0.5) continue;
+                
+                let color = 'rgba(255, 255, 255, 0.4)';
+                
+                if (jointMatches[start] !== undefined || jointMatches[end] !== undefined) {
+                    const startMatch = jointMatches[start];
+                    const endMatch = jointMatches[end];
+                    
+                    if (startMatch === true && endMatch === true) {
+                        color = '#00ff88';
+                    } else if (startMatch === false || endMatch === false) {
+                        color = '#ff0080';
+                    }
+                }
+                
+                ctx.strokeStyle = color;
+                ctx.beginPath();
+                ctx.moveTo(startLm.x * canvas.width, startLm.y * canvas.height);
+                ctx.lineTo(endLm.x * canvas.width, endLm.y * canvas.height);
+                ctx.stroke();
+            }
+            
+            for (let i = 0; i < landmarks.length; i++) {
+                const lm = landmarks[i];
+                if (!lm || lm.visibility < 0.5) continue;
+                
+                const x = lm.x * canvas.width;
+                const y = lm.y * canvas.height;
+                
+                let color = 'rgba(255, 255, 255, 0.6)';
+                if (jointMatches[i] === true) {
+                    color = '#00ff88';
+                } else if (jointMatches[i] === false) {
+                    color = '#ff0080';
+                }
+                
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(x, y, 8, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                if (jointMatches[i] === true) {
+                    ctx.shadowBlur = 20;
+                    ctx.shadowColor = color;
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                }
+            }
+        }
+        
+        function updateScore(comparison) {
+            totalFrames++;
+            
+            if (comparison.accuracy > 0.6) {
+                matchedFrames++;
+                combo++;
+                score += 10 * (1 + combo * 0.1);
+                
+                if (combo > 5) {
+                    const indicator = document.getElementById('comboIndicator');
+                    const comboVal = document.getElementById('comboValue');
+                    comboVal.textContent = combo;
+                    indicator.classList.add('active');
+                }
+                
+                if (combo % 10 === 0 && combo > 0) {
+                    showFeedback('PERFECT!', '#00ff88');
+                }
+            } else {
+                if (combo > 10) {
+                    showFeedback('COMBO BREAK', '#ff0080');
+                }
+                combo = 0;
+                document.getElementById('comboIndicator').classList.remove('active');
+            }
+            
+            updateUI();
+        }
+        
+        function updateUI() {
+            document.getElementById('score').textContent = Math.floor(score);
+            document.getElementById('combo').textContent = combo;
+            
+            const accuracy = totalFrames > 0 ? (matchedFrames / totalFrames) * 100 : 0;
+            document.getElementById('accuracy').textContent = accuracy.toFixed(0) + '%';
+        }
+        
+        function showFeedback(text, color) {
+            const feedback = document.getElementById('feedback');
+            feedback.textContent = text;
+            feedback.style.color = color;
+            feedback.classList.remove('show');
+            void feedback.offsetWidth;
+            feedback.classList.add('show');
+        }
+    </script>
+</body>
+</html>
