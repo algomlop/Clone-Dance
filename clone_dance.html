@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>💃 Just Dance Clone</title>
+    <title>Clone Dance</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;500;700&display=swap');
         
@@ -26,7 +26,8 @@
             font-family: 'Rajdhani', sans-serif;
             background: linear-gradient(135deg, #0a0a0f 0%, #1a0a2e 100%);
             color: white;
-            overflow: hidden;
+            overflow-x: hidden;
+            overflow-y: auto;
             height: 100vh;
         }
         
@@ -123,6 +124,7 @@
         }
         
         .main-panel {
+            height: calc(100vh - 220px);
             position: relative;
             background: rgba(26, 26, 46, 0.6);
             border-radius: 15px;
@@ -132,7 +134,7 @@
             backdrop-filter: blur(5px);
             width: 100%;
             max-width: 1200px;
-            height: 100%;
+            
         }
         
         .panel-header {
@@ -173,7 +175,6 @@
             height: 1px;
         }
         
-        /* Calibration screen */
         .calibration-screen {
             position: fixed;
             top: 0;
@@ -260,13 +261,11 @@
         }
         
         .controls {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            gap: 15px;
-            z-index: 10;
+            position: sticky;
+            bottom: 10px;
+            margin: 10px auto;
+            justify-content: center;
+            flex-wrap: wrap;
         }
         
         button {
@@ -453,33 +452,34 @@
     <div id="app">
         <div id="setupScreen" class="setup-screen">
             <div class="setup-content">
-                <h2>🎮 Setup Game</h2>
+                <h2>Clone Dance</h2>
                 
                 <div class="file-input-group">
-                    <label>Video de Referencia (MP4)</label>
+                    <label>Reference Video (MP4)</label>
                     <input type="file" id="videoFile" accept="video/mp4" required>
                 </div>
                 
                 <div class="file-input-group">
-                    <label>JSON de Movimientos (continuous)</label>
+                    <label>Choreography JSON</label>
                     <input type="file" id="jsonFile" accept="application/json" required>
                 </div>
                 
                 <div class="file-input-group">
-                    <label>Threshold de Precisión (0.0 - 1.0)</label>
-                    <input type="number" id="threshold" min="0" max="1" step="0.05" value="0.15">
-                    <small style="color: #888; display: block; margin-top: 5px;">
-                        Menor = más estricto | Mayor = más permisivo
-                    </small>
+                    <label>Player Input</label>
+                    <select id="inputMode" style="width: 100%; padding: 12px; background: rgba(0, 0, 0, 0.5); border: 2px solid var(--neon-blue); border-radius: 8px; color: white; font-family: 'Rajdhani', sans-serif; margin-bottom: 10px;">
+                        <option value="webcam">Webcam (Live)</option>
+                        <option value="video">Video File (Testing)</option>
+                    </select>
+                    <input type="file" id="playerVideoFile" accept="video/mp4" style="display: none; width: 100%; padding: 12px; background: rgba(0, 0, 0, 0.5); border: 2px solid var(--neon-blue); border-radius: 8px; color: white; font-family: 'Rajdhani', sans-serif;">
                 </div>
                 
                 <div class="loading" id="loading">
                     <div class="spinner"></div>
-                    <p style="margin-top: 10px; color: var(--neon-blue);">Cargando MediaPipe...</p>
+                    <p style="margin-top: 10px; color: var(--neon-blue);">Loading MediaPipe...</p>
                 </div>
                 
                 <button class="btn-primary" id="startBtn" style="margin-top: 30px; width: 100%;">
-                    ▶ Iniciar Juego
+                    Start Game
                 </button>
             </div>
         </div>
@@ -487,7 +487,7 @@
         <div id="gameScreen" class="hidden">
             <header>
                 <div class="header-content">
-                    <h1>💃 JUST DANCE</h1>
+                    <h1>CLONE DANCE</h1>
                     <div class="score-display">
                         <div class="stat">
                             <div class="stat-label">Score</div>
@@ -507,8 +507,8 @@
             
             <div class="game-container">
                 <div class="main-panel">
-                    <div class="panel-header">📹 Dance Match</div>
-                    <video id="referenceVideo" autoplay loop muted></video>
+                    <div class="panel-header">Dance Match</div>
+                    <video id="referenceVideo" loop></video>
                     <canvas id="playerCanvas"></canvas>
                     <div class="combo-indicator" id="comboIndicator">COMBO x<span id="comboValue">0</span>!</div>
                     <div class="feedback" id="feedback"></div>
@@ -516,18 +516,17 @@
             </div>
             
             <div class="controls">
-                <button class="btn-primary" id="playPauseBtn">▶ Play</button>
-                <button class="btn-secondary" id="resetBtn">🔄 Reset</button>
-                <button class="btn-secondary" id="recalibrateBtn">⚙️ Recalibrate</button>
+                <button class="btn-primary" id="playPauseBtn">Play</button>
+                <button class="btn-secondary" id="resetBtn">Reset</button>
+                <button class="btn-secondary" id="recalibrateBtn">Recalibrate</button>
             </div>
         </div>
         
-        <!-- Calibration Screen -->
         <div id="calibrationScreen" class="calibration-screen">
             <div class="calibration-content">
-                <h2>⚙️ Calibración Inicial</h2>
+                <h2>Initial Calibration</h2>
                 <p style="color: var(--neon-blue); margin-bottom: 20px;">
-                    Colócate en la pose inicial del video de referencia
+                    Match the starting pose of the reference video
                 </p>
                 
                 <div class="calibration-preview">
@@ -536,18 +535,18 @@
                 
                 <div class="calibration-status">
                     <div class="status-text" id="calibrationStatus">
-                        Detectando pose inicial...
+                        Detecting initial pose...
                     </div>
                     <div class="progress-bar">
                         <div class="progress-fill" id="calibrationProgress"></div>
                     </div>
                     <div class="calibration-hint">
-                        Coincidencia necesaria: <span id="matchPercentage">0%</span>
+                        Match required: <span id="matchPercentage">0%</span>
                     </div>
                 </div>
                 
                 <button class="btn-secondary" id="skipCalibrationBtn" style="margin-top: 20px;">
-                    Saltar calibración
+                    Skip calibration
                 </button>
             </div>
         </div>
@@ -555,517 +554,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-    <script>
-        let referenceData = null;
-        let pose = null;
-        let camera = null;
-        let videoElement = null;
-        let canvas = null;
-        let ctx = null;
-        let calibrationCanvas = null;
-        let calibrationCtx = null;
-        
-        let score = 0;
-        let combo = 0;
-        let totalFrames = 0;
-        let matchedFrames = 0;
-        let threshold = 0.15;
-        let isPlaying = false;
-        let isCalibrated = false;
-        let currentPlayerPose = null;
-        
-        // Normalización
-        let scaleFactorX = 1;
-        let scaleFactorY = 1;
-        let offsetX = 0;
-        let offsetY = 0;
-        
-        const POSE_CONNECTIONS = [
-            [11, 12], [11, 13], [13, 15], [12, 14], [14, 16],
-            [11, 23], [12, 24], [23, 24],
-            [23, 25], [25, 27], [24, 26], [26, 28],
-            [27, 29], [27, 31], [28, 30], [28, 32]
-        ];
-        
-        const SCORING_JOINTS = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
-        
-        // Calibration
-        let calibrationFrames = 0;
-        let calibrationThreshold = 0.7; // 70% match needed
-        
-        document.getElementById('startBtn').addEventListener('click', initGame);
-        document.getElementById('playPauseBtn').addEventListener('click', togglePlayPause);
-        document.getElementById('resetBtn').addEventListener('click', resetGame);
-        document.getElementById('recalibrateBtn').addEventListener('click', startCalibration);
-        document.getElementById('skipCalibrationBtn').addEventListener('click', skipCalibration);
-        // --- REEMPLAZA TU FUNCIÓN initGame Y onPoseResults CON ESTO ---
-
-async function initGame() {
-    const videoFile = document.getElementById('videoFile').files[0];
-    const jsonFile = document.getElementById('jsonFile').files[0];
-    threshold = parseFloat(document.getElementById('threshold').value);
-    
-    if (!videoFile || !jsonFile) {
-        alert('Por favor selecciona ambos archivos');
-        return;
-    }
-    
-    document.getElementById('loading').classList.add('active');
-    document.getElementById('startBtn').disabled = true;
-    
-    try {
-        console.log("Cargando JSON...");
-        const jsonText = await jsonFile.text();
-        referenceData = JSON.parse(jsonText);
-        
-        console.log("Configurando Video de Referencia...");
-        videoElement = document.getElementById('referenceVideo');
-        videoElement.src = URL.createObjectURL(videoFile);
-        
-        // Esperar a que el video cargue metadatos
-        await new Promise((resolve) => {
-            videoElement.onloadedmetadata = () => resolve();
-        });
-
-        console.log("Inicializando MediaPipe Pose...");
-        pose = new Pose({
-            locateFile: (file) => {
-                return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
-            }
-        });
-        
-        pose.setOptions({
-            modelComplexity: 1, // 1 es mejor balance que 0 para Just Dance
-            smoothLandmarks: true,
-            minDetectionConfidence: 0.5,
-            minTrackingConfidence: 0.5
-        });
-        
-        pose.onResults(onPoseResults);
-        
-        console.log("Configurando Webcam...");
-        const videoEl = document.createElement('video');
-        videoEl.setAttribute('autoplay', '');
-        videoEl.setAttribute('muted', '');
-        videoEl.setAttribute('playsinline', '');
-        videoEl.classList.add('webcam-hidden');
-        document.body.appendChild(videoEl);
-
-        // Configurar Canvas
-        canvas = document.getElementById('playerCanvas');
-        ctx = canvas.getContext('2d');
-        calibrationCanvas = document.getElementById('calibrationCanvas');
-        calibrationCtx = calibrationCanvas.getContext('2d');
-
-        canvas.width = videoElement.videoWidth;
-        canvas.height = videoElement.videoHeight;
-
-        console.log("Iniciando Cámara...");
-        camera = new Camera(videoEl, {
-            onFrame: async () => {
-                await pose.send({image: videoEl});
-            },
-            width: 640,
-            height: 480
-        });
-
-        await camera.start();
-        console.log("Cámara lista.");
-
-        document.getElementById('loading').classList.remove('active');
-        document.getElementById('setupScreen').classList.add('hidden');
-        document.getElementById('gameScreen').classList.remove('hidden');
-        
-        startCalibration();
-        
-    } catch (error) {
-        console.error('Error detallado:', error);
-        alert('Error al iniciar: ' + error.message);
-        document.getElementById('loading').classList.remove('active');
-        document.getElementById('startBtn').disabled = false;
-    }
-}
-        
-        function startCalibration() {
-            isCalibrated = false;
-            isPlaying = false;
-            calibrationFrames = 0;
-            videoElement.currentTime = 0;
-            videoElement.pause();
-            
-            document.getElementById('calibrationScreen').classList.add('active');
-            document.getElementById('calibrationStatus').textContent = 'Detectando pose inicial...';
-            document.getElementById('calibrationProgress').style.width = '0%';
-        }
-        
-        function skipCalibration() {
-            isCalibrated = true;
-            scaleFactorX = 1;
-            scaleFactorY = 1;
-            offsetX = 0;
-            offsetY = 0;
-            document.getElementById('calibrationScreen').classList.remove('active');
-        }
-        
-        function onPoseResults(results) {
-            if (results.poseLandmarks) {
-                currentPlayerPose = results.poseLandmarks;
-                
-                // If calibrating
-                if (!isCalibrated) {
-                    handleCalibration(results.poseLandmarks);
-                    return;
-                }
-            }
-            
-            // Draw on main canvas (overlay on video)
-            if (!isCalibrated) return;
-            
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            if (currentPlayerPose) {
-                const referencePose = getCurrentReferencePose();
-                
-                if (referencePose && isPlaying) {
-                    const normalizedPlayerPose = normalizePose(currentPlayerPose);
-                    const comparison = comparePoses(normalizedPlayerPose, referencePose.landmarks);
-                    drawSkeletonOnVideo(normalizedPlayerPose, comparison.jointMatches);
-                } else {
-                    const normalizedPlayerPose = normalizePose(currentPlayerPose);
-                    const neutralMatches = SCORING_JOINTS.reduce((acc, idx) => {
-                        acc[idx] = null;
-                        return acc;
-                    }, {});
-                    drawSkeletonOnVideo(normalizedPlayerPose, neutralMatches);
-                }
-            }
-        }
-        
-        function handleCalibration(playerLandmarks) {
-            // Draw calibration preview
-            calibrationCtx.clearRect(0, 0, calibrationCanvas.width, calibrationCanvas.height);
-            
-            // Get first frame reference pose
-            const referencePose = getFirstReferencePose();
-            
-            if (!referencePose) {
-                document.getElementById('calibrationStatus').textContent = 'Error: No se encontró pose de referencia';
-                return;
-            }
-            
-            // Draw reference skeleton (semi-transparent)
-            drawCalibrationSkeleton(referencePose.landmarks, 'rgba(0, 212, 255, 0.5)');
-            
-            // Draw player skeleton
-            drawCalibrationSkeleton(playerLandmarks, '#00ff88');
-            
-            // Calculate match without normalization (just for initial alignment)
-            const rawComparison = comparePoses(playerLandmarks, referencePose.landmarks);
-            const matchPercentage = (rawComparison.accuracy * 100).toFixed(0);
-            
-            document.getElementById('matchPercentage').textContent = matchPercentage + '%';
-            document.getElementById('calibrationProgress').style.width = matchPercentage + '%';
-            
-            if (rawComparison.accuracy >= calibrationThreshold) {
-                calibrationFrames++;
-                document.getElementById('calibrationStatus').textContent = `¡Bien! Mantén la pose... (${calibrationFrames}/30)`;
-                
-                if (calibrationFrames >= 30) {
-                    // Calculate normalization factors
-                    calculateNormalization(playerLandmarks, referencePose.landmarks);
-                    isCalibrated = true;
-                    document.getElementById('calibrationScreen').classList.remove('active');
-                    
-                    // Show success feedback
-                    showFeedback('CALIBRADO!', '#00ff88');
-                }
-            } else {
-                calibrationFrames = 0;
-                document.getElementById('calibrationStatus').textContent = 'Coincidencia insuficiente. Ajusta tu pose...';
-            }
-        }
-        
-        function calculateNormalization(playerLandmarks, referenceLandmarks) {
-            // Calculate torso size for both poses
-            const playerTorso = getTorsoSize(playerLandmarks);
-            const refTorso = getTorsoSize(referenceLandmarks);
-            
-            // Scale factor based on torso size
-            scaleFactorX = refTorso.width / playerTorso.width;
-            scaleFactorY = refTorso.height / playerTorso.height;
-            
-            // Offset to center torso
-            const playerCenter = getTorsoCenter(playerLandmarks);
-            const refCenter = getTorsoCenter(referenceLandmarks);
-            
-            offsetX = refCenter.x - (playerCenter.x * scaleFactorX);
-            offsetY = refCenter.y - (playerCenter.y * scaleFactorY);
-            
-            console.log('Calibración:', { scaleFactorX, scaleFactorY, offsetX, offsetY });
-        }
-        
-        function getTorsoSize(landmarks) {
-            const leftShoulder = landmarks[11];
-            const rightShoulder = landmarks[12];
-            const leftHip = landmarks[23];
-            const rightHip = landmarks[24];
-            
-            const width = Math.abs(rightShoulder.x - leftShoulder.x);
-            const height = Math.abs((leftHip.y + rightHip.y) / 2 - (leftShoulder.y + rightShoulder.y) / 2);
-            
-            return { width, height };
-        }
-        
-        function getTorsoCenter(landmarks) {
-            const leftShoulder = landmarks[11];
-            const rightShoulder = landmarks[12];
-            const leftHip = landmarks[23];
-            const rightHip = landmarks[24];
-            
-            return {
-                x: (leftShoulder.x + rightShoulder.x + leftHip.x + rightHip.x) / 4,
-                y: (leftShoulder.y + rightShoulder.y + leftHip.y + rightHip.y) / 4
-            };
-        }
-        
-        function normalizePose(landmarks) {
-            return landmarks.map(lm => ({
-                x: lm.x * scaleFactorX + offsetX,
-                y: lm.y * scaleFactorY + offsetY,
-                z: lm.z,
-                visibility: lm.visibility
-            }));
-        }
-        
-        function getFirstReferencePose() {
-            const poses = referenceData.continuous_poses || referenceData.key_poses;
-            return poses && poses.length > 0 ? poses[0] : null;
-        }
-        
-        function drawCalibrationSkeleton(landmarks, color) {
-            calibrationCtx.lineWidth = 3;
-            calibrationCtx.strokeStyle = color;
-            
-            for (const [start, end] of POSE_CONNECTIONS) {
-                const startLm = landmarks[start];
-                const endLm = landmarks[end];
-                
-                if (startLm.visibility < 0.5 || endLm.visibility < 0.5) continue;
-                
-                calibrationCtx.beginPath();
-                calibrationCtx.moveTo(startLm.x * calibrationCanvas.width, startLm.y * calibrationCanvas.height);
-                calibrationCtx.lineTo(endLm.x * calibrationCanvas.width, endLm.y * calibrationCanvas.height);
-                calibrationCtx.stroke();
-            }
-            
-            calibrationCtx.fillStyle = color;
-            for (const lm of landmarks) {
-                if (lm.visibility < 0.5) continue;
-                calibrationCtx.beginPath();
-                calibrationCtx.arc(lm.x * calibrationCanvas.width, lm.y * calibrationCanvas.height, 5, 0, 2 * Math.PI);
-                calibrationCtx.fill();
-            }
-        }
-        
-        function gameLoop() {
-            if (currentPlayerPose && isPlaying && isCalibrated) {
-                const referencePose = getCurrentReferencePose();
-                if (referencePose) {
-                    const normalizedPlayerPose = normalizePose(currentPlayerPose);
-                    const comparison = comparePoses(normalizedPlayerPose, referencePose.landmarks);
-                    updateScore(comparison);
-                }
-            }
-            requestAnimationFrame(gameLoop);
-        }
-        
-        gameLoop();
-        
-        function togglePlayPause() {
-            if (!isCalibrated) {
-                alert('Por favor completa la calibración primero');
-                return;
-            }
-            
-            isPlaying = !isPlaying;
-            const btn = document.getElementById('playPauseBtn');
-            
-            if (isPlaying) {
-                videoElement.play();
-                btn.textContent = '⏸ Pause';
-            } else {
-                videoElement.pause();
-                btn.textContent = '▶ Play';
-            }
-        }
-        
-        function resetGame() {
-            score = 0;
-            combo = 0;
-            totalFrames = 0;
-            matchedFrames = 0;
-            videoElement.currentTime = 0;
-            isPlaying = false;
-            document.getElementById('playPauseBtn').textContent = '▶ Play';
-            updateUI();
-        }
-        
-        function getCurrentReferencePose() {
-            if (!referenceData || !videoElement) return null;
-            
-            const currentTime = videoElement.currentTime;
-            const poses = referenceData.continuous_poses || referenceData.key_poses;
-            
-            if (!poses || poses.length === 0) return null;
-            
-            let closest = poses[0];
-            let minDiff = Math.abs(currentTime - closest.timestamp);
-            
-            for (const pose of poses) {
-                const diff = Math.abs(currentTime - pose.timestamp);
-                if (diff < minDiff) {
-                    minDiff = diff;
-                    closest = pose;
-                }
-            }
-            
-            if (minDiff > 0.1) return null;
-            return closest;
-        }
-        
-        function comparePoses(playerLandmarks, referenceLandmarks) {
-            const jointMatches = {};
-            let matchedJoints = 0;
-            let totalJoints = 0;
-            
-            for (const jointIdx of SCORING_JOINTS) {
-                const playerJoint = playerLandmarks[jointIdx];
-                const refJoint = referenceLandmarks[jointIdx];
-                
-                if (!playerJoint || !refJoint || playerJoint.visibility < 0.5 || refJoint.visibility < 0.5) {
-                    jointMatches[jointIdx] = null;
-                    continue;
-                }
-                
-                const distance = Math.sqrt(
-                    Math.pow(playerJoint.x - refJoint.x, 2) +
-                    Math.pow(playerJoint.y - refJoint.y, 2) +
-                    Math.pow(playerJoint.z - refJoint.z, 2)
-                );
-                
-                totalJoints++;
-                const isMatch = distance < threshold;
-                jointMatches[jointIdx] = isMatch;
-                
-                if (isMatch) matchedJoints++;
-            }
-            
-            const accuracy = totalJoints > 0 ? matchedJoints / totalJoints : 0;
-            return { jointMatches, accuracy, matchedJoints, totalJoints };
-        }
-        
-        function drawSkeletonOnVideo(landmarks, jointMatches) {
-            ctx.lineWidth = 5;
-            
-            for (const [start, end] of POSE_CONNECTIONS) {
-                const startLm = landmarks[start];
-                const endLm = landmarks[end];
-                
-                if (!startLm || !endLm || startLm.visibility < 0.5 || endLm.visibility < 0.5) continue;
-                
-                let color = 'rgba(255, 255, 255, 0.4)';
-                
-                if (jointMatches[start] !== undefined || jointMatches[end] !== undefined) {
-                    const startMatch = jointMatches[start];
-                    const endMatch = jointMatches[end];
-                    
-                    if (startMatch === true && endMatch === true) {
-                        color = '#00ff88';
-                    } else if (startMatch === false || endMatch === false) {
-                        color = '#ff0080';
-                    }
-                }
-                
-                ctx.strokeStyle = color;
-                ctx.beginPath();
-                ctx.moveTo(startLm.x * canvas.width, startLm.y * canvas.height);
-                ctx.lineTo(endLm.x * canvas.width, endLm.y * canvas.height);
-                ctx.stroke();
-            }
-            
-            for (let i = 0; i < landmarks.length; i++) {
-                const lm = landmarks[i];
-                if (!lm || lm.visibility < 0.5) continue;
-                
-                const x = lm.x * canvas.width;
-                const y = lm.y * canvas.height;
-                
-                let color = 'rgba(255, 255, 255, 0.6)';
-                if (jointMatches[i] === true) {
-                    color = '#00ff88';
-                } else if (jointMatches[i] === false) {
-                    color = '#ff0080';
-                }
-                
-                ctx.fillStyle = color;
-                ctx.beginPath();
-                ctx.arc(x, y, 8, 0, 2 * Math.PI);
-                ctx.fill();
-                
-                if (jointMatches[i] === true) {
-                    ctx.shadowBlur = 20;
-                    ctx.shadowColor = color;
-                    ctx.fill();
-                    ctx.shadowBlur = 0;
-                }
-            }
-        }
-        
-        function updateScore(comparison) {
-            totalFrames++;
-            
-            if (comparison.accuracy > 0.6) {
-                matchedFrames++;
-                combo++;
-                score += 10 * (1 + combo * 0.1);
-                
-                if (combo > 5) {
-                    const indicator = document.getElementById('comboIndicator');
-                    const comboVal = document.getElementById('comboValue');
-                    comboVal.textContent = combo;
-                    indicator.classList.add('active');
-                }
-                
-                if (combo % 10 === 0 && combo > 0) {
-                    showFeedback('PERFECT!', '#00ff88');
-                }
-            } else {
-                if (combo > 10) {
-                    showFeedback('COMBO BREAK', '#ff0080');
-                }
-                combo = 0;
-                document.getElementById('comboIndicator').classList.remove('active');
-            }
-            
-            updateUI();
-        }
-        
-        function updateUI() {
-            document.getElementById('score').textContent = Math.floor(score);
-            document.getElementById('combo').textContent = combo;
-            
-            const accuracy = totalFrames > 0 ? (matchedFrames / totalFrames) * 100 : 0;
-            document.getElementById('accuracy').textContent = accuracy.toFixed(0) + '%';
-        }
-        
-        function showFeedback(text, color) {
-            const feedback = document.getElementById('feedback');
-            feedback.textContent = text;
-            feedback.style.color = color;
-            feedback.classList.remove('show');
-            void feedback.offsetWidth;
-            feedback.classList.add('show');
-        }
-    </script>
+    <script src="game_config.js"></script>
+    <script src="clone_dance.js"></script>
 </body>
 </html>

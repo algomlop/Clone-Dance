@@ -1,0 +1,113 @@
+{
+  "ACCELERATION_HISTORY_FRAMES": 3,
+  "ACCELERATION_POINTS": {
+    "left_hand": 15,
+    "right_hand": 16,
+    "left_foot": 27,
+    "right_foot": 28
+  },
+  "ACCELERATION_SMOOTHING": 0.2,
+  "ACCELERATION_THRESHOLD": 0.5,
+  "ACCELERATION_WEIGHT": 0.2,
+  "ACTIVE_LANDMARKS": [
+    0,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32
+  ],
+  "ANGLE_JOINTS": {
+    "left_shoulder": [
+      13,
+      11,
+      23
+    ],
+    "right_shoulder": [
+      14,
+      12,
+      24
+    ],
+    "left_elbow": [
+      11,
+      13,
+      15
+    ],
+    "right_elbow": [
+      12,
+      14,
+      16
+    ],
+    "left_knee": [
+      23,
+      25,
+      27
+    ],
+    "right_knee": [
+      24,
+      26,
+      28
+    ]
+  },
+  "ANGLE_SMOOTHING": 0.4,
+  "ANGLE_THRESHOLD": 20.0,
+  "ANGLE_WEIGHT": 0.3,
+  "ARM_LANDMARKS": [
+    11,
+    12,
+    13,
+    14,
+    15,
+    16
+  ],
+  "BASE_POINTS": 10,
+  "CALIBRATION_DURATION": 3.0,
+  "COMBO_MULTIPLIER": 0.1,
+  "COMBO_THRESHOLD": 0.6,
+  "HEAD_LANDMARKS": [
+    0
+  ],
+  "LEG_LANDMARKS": [
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32
+  ],
+  "LINE_THICKNESS": 3,
+  "MIN_CALIBRATION_QUALITY": 0.7,
+  "MIN_DETECTION_CONFIDENCE": 0.8,
+  "MIN_PRESENCE_CONFIDENCE": 0.8,
+  "MIN_TORSO_SIZE": 0.01,
+  "MIN_TRACKING_CONFIDENCE": 0.8,
+  "MIRROR_REFERENCE": true,
+  "MODEL_COMPLEXITY": "heavy",
+  "MODEL_PATH": null,
+  "NORMALIZE_BY_TORSO": true,
+  "OUTPUT_DIR": "choreographies",
+  "POSITION_SMOOTHING": 0.3,
+  "POSITION_THRESHOLD": 0.15,
+  "POSITION_WEIGHT": 0.5,
+  "SHOW_LABELS": true,
+  "SKELETON_COLOR": "#00ff88",
+  "SKELETON_OPACITY": 1.0,
+  "SKIP_FRAMES": 0,
+  "SMOOTHING_ALPHA": 0.3,
+  "TARGET_FPS": null
+}

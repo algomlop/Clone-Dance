@@ -1,6 +1,6 @@
 """
-Extractor de poses usando MediaPipe Pose Landmarker (nueva API).
-Reemplaza la implementación anterior con la API moderna y más precisa.
+Pose extractor using MediaPipe Pose Landmarker.
+Extracts poses with position, angles, and acceleration data.
 """
 
 import cv2
@@ -10,8 +10,11 @@ from mediapipe.tasks.python import vision
 import numpy as np
 import json
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
+from collections import deque
 import logging
+
+from config import Config
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -19,69 +22,59 @@ logger = logging.getLogger(__name__)
 
 class PoseExtractor:
     """
-    Extractor de poses usando MediaPipe Pose Landmarker (nueva API).
-    
-    Ventajas vs API antigua:
-    - Modelos más precisos (especialmente Heavy)
-    - Mejor rendimiento
-    - API moderna y mantenida
-    - Soporte para múltiples personas
+    Extracts poses from video with:
+    - Position data (x, y, z, visibility)
+    - Joint angles
+    - Hand/foot acceleration (magnitude and direction)
     """
     
     def __init__(self, 
                  model_path: Optional[str] = None,
-                 model_complexity: str = 'heavy'):
-        
-
+                 model_complexity: str = None):
         """
-        Inicializa el extractor con Pose Landmarker.
+        Initialize pose extractor.
         
         Args:
-            model_path: Ruta al archivo .task del modelo
-            model_complexity: 'lite', 'full', o 'heavy'
-                - lite: Más rápido, menos preciso
-                - full: Balanceado (recomendado para tiempo real)
-                - heavy: Más lento, más preciso (recomendado para offline)
+            model_path: Path to .task model file
+            model_complexity: 'lite', 'full', or 'heavy'
         """
-        self.model_complexity = model_complexity
+        self.model_complexity = model_complexity or Config.MODEL_COMPLEXITY
         
-        # Si no nos dan una ruta específica, construimos el nombre según la complejidad
         if model_path is None:
-            model_path = f'pose_landmarker_{model_complexity}.task'
+            model_path = Config.MODEL_PATH or f'pose_landmarker_{self.model_complexity}.task'
         
-        # Verificar si el modelo existe
-        model_path = self._ensure_model_exists(model_path, model_complexity)
+        model_path = self._ensure_model_exists(model_path, self.model_complexity)
         
         base_options = python.BaseOptions(model_asset_path=model_path)
         
-        # Opciones para procesamiento de video
         self.options = vision.PoseLandmarkerOptions(
             base_options=base_options,
             running_mode=vision.RunningMode.VIDEO,
-            num_poses=1,  # Solo una persona
-            min_pose_detection_confidence=0.5,  # ↑ Evita parpadeo
-            min_pose_presence_confidence=0.5,   # ↑ Más estricto  
-            min_tracking_confidence=0.7,        # ↑ Tracking fuerte
-            output_segmentation_masks=False  # No necesitamos máscaras
+            num_poses=1,
+            min_pose_detection_confidence=Config.MIN_DETECTION_CONFIDENCE,
+            min_pose_presence_confidence=Config.MIN_PRESENCE_CONFIDENCE,
+            min_tracking_confidence=Config.MIN_TRACKING_CONFIDENCE,
+            output_segmentation_masks=False
         )
         
         self.detector = vision.PoseLandmarker.create_from_options(self.options)
         
-        logger.info(f"✅ PoseLandmarkerExtractor inicializado con modelo: {model_complexity}")
+        # History for acceleration calculation
+        self.position_history = deque(maxlen=Config.ACCELERATION_HISTORY_FRAMES)
+        
+        logger.info(f"PoseLandmarkerExtractor initialized with model: {self.model_complexity}")
     
     def _ensure_model_exists(self, model_path: str, complexity: str) -> str:
-        # 1. Si la ruta que nos llega existe, la usamos
+        """Check if model exists, provide download instructions if not"""
         if Path(model_path).exists():
             return model_path
         
-        # 2. Si no, intentamos buscar el nombre estándar por si acaso
         default_name = f'pose_landmarker_{complexity}.task'
         if Path(default_name).exists():
             return default_name
         
-        # 3. Si nada funciona, error
-        logger.error(f"❌ No se encontró el modelo: {model_path}")
-        logger.info(f"📥 Descarga el modelo con:")
+        logger.error(f"Model not found: {model_path}")
+        logger.info(f"Download the model with:")
         
         urls = {
             'lite': 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task',
@@ -92,27 +85,28 @@ class PoseExtractor:
         logger.info(f"wget {urls[complexity]}")
         
         raise FileNotFoundError(
-            f"Modelo no encontrado. Por favor descarga:\n"
-            f"wget {urls[complexity]}"
+            f"Model not found. Please download:\nwget {urls[complexity]}"
         )
     
-    def extract_from_video(self, video_path: str, skip_frames: int = 0) -> Dict:
+    def extract_from_video(self, video_path: str, skip_frames: int = None) -> Dict:
         """
-        Extrae todas las poses de un video.
+        Extract all poses from a video with position, angles, and acceleration.
         
         Args:
-            video_path: Ruta al archivo de video
-            skip_frames: Saltar N frames (0 = procesar todos)
+            video_path: Path to video file
+            skip_frames: Skip N frames (None = use Config.SKIP_FRAMES)
         
         Returns:
-            Dict con metadata y lista de poses
+            Dict with metadata and pose list
         """
         if not Path(video_path).exists():
-            raise FileNotFoundError(f"Video no encontrado: {video_path}")
+            raise FileNotFoundError(f"Video not found: {video_path}")
+        
+        if skip_frames is None:
+            skip_frames = Config.SKIP_FRAMES
         
         cap = cv2.VideoCapture(video_path)
         
-        # Obtener metadata del video
         fps = cap.get(cv2.CAP_PROP_FPS)
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -124,28 +118,41 @@ class PoseExtractor:
             'total_frames': total_frames,
             'duration': duration,
             'resolution': (width, height),
-            'model_complexity': self.model_complexity
+            'model_complexity': self.model_complexity,
+            'active_landmarks': Config.ACTIVE_LANDMARKS,
+            'mirror_mode': Config.MIRROR_REFERENCE
         }
         
-        logger.info(f"📹 Procesando video: {video_path}")
-        logger.info(f"   FPS: {fps:.1f}, Frames: {total_frames}, Duración: {duration:.1f}s")
+        logger.info(f"Processing video: {video_path}")
+        logger.info(f"   FPS: {fps:.1f}, Frames: {total_frames}, Duration: {duration:.1f}s")
         
         poses = []
         frame_count = 0
         processed_count = 0
         failed_count = 0
         
+        # Reset history
+        self.position_history.clear()
+        
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
                 break
             
-            # Saltar frames si se especifica
+            # Skip frames if specified
             if skip_frames > 0 and frame_count % (skip_frames + 1) != 0:
                 frame_count += 1
                 continue
             
-            # Procesar frame
+            # Apply FPS limit if specified
+            if Config.TARGET_FPS is not None:
+                target_interval = 1.0 / Config.TARGET_FPS
+                actual_interval = 1.0 / fps
+                if frame_count * actual_interval % target_interval < actual_interval:
+                    frame_count += 1
+                    continue
+            
+            # Process frame
             pose_data = self._process_frame(frame, frame_count, fps)
             
             if pose_data:
@@ -156,16 +163,15 @@ class PoseExtractor:
             
             frame_count += 1
             
-            # Log progreso cada 100 frames
             if frame_count % 100 == 0:
                 progress = (frame_count / total_frames) * 100
-                logger.info(f"   Progreso: {progress:.1f}% ({frame_count}/{total_frames})")
+                logger.info(f"   Progress: {progress:.1f}% ({frame_count}/{total_frames})")
         
         cap.release()
         
-        logger.info(f"✅ Extracción completada:")
-        logger.info(f"   Procesados: {processed_count}, Fallos: {failed_count}")
-        logger.info(f"   Tasa éxito: {(processed_count/frame_count)*100:.1f}%")
+        logger.info(f"Extraction completed:")
+        logger.info(f"   Processed: {processed_count}, Failed: {failed_count}")
+        logger.info(f"   Success rate: {(processed_count/frame_count)*100:.1f}%")
         
         return {
             'metadata': metadata,
@@ -173,80 +179,228 @@ class PoseExtractor:
         }
     
     def _process_frame(self, frame, frame_number: int, fps: float) -> Optional[Dict]:
-        """Procesa un frame individual y extrae landmarks"""
-        # Convertir frame a RGB (MediaPipe requiere RGB)
+        """Process individual frame and extract landmarks with angles and acceleration"""
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         
-        # Crear MediaPipe Image desde numpy array
+        # Mirror if configured
+        if Config.MIRROR_REFERENCE:
+            frame_rgb = cv2.flip(frame_rgb, 1)
+        
         mp_image = mp.Image(
             image_format=mp.ImageFormat.SRGB,
             data=frame_rgb
         )
         
-        # Calcular timestamp en milisegundos (requerido por Pose Landmarker)
         timestamp_ms = int(frame_number / fps * 1000) if fps > 0 else frame_number * 33
         
-        # Detectar poses
         detection_result = self.detector.detect_for_video(mp_image, timestamp_ms)
         
-        # Verificar si se detectó alguna pose
         if not detection_result.pose_landmarks or len(detection_result.pose_landmarks) == 0:
             return None
         
-        # Tomar la primera pose (solo detectamos una persona)
         pose_landmarks = detection_result.pose_landmarks[0]
-        
-        # Calcular timestamp real
         timestamp = frame_number / fps if fps > 0 else 0
         
-        # Serializar landmarks
+        # Serialize landmarks (only active ones)
         landmarks = self._serialize_landmarks(pose_landmarks)
+        
+        # Calculate angles
+        angles = self._calculate_angles(landmarks)
+        
+        # Calculate acceleration (needs history)
+        acceleration = self._calculate_acceleration(landmarks, timestamp)
+        
+        # Store current positions in history
+        self._update_history(landmarks, timestamp)
         
         return {
             'timestamp': round(timestamp, 3),
             'frame': frame_number,
-            'landmarks': landmarks
+            'landmarks': landmarks,
+            'angles': angles,
+            'acceleration': acceleration
         }
     
     def _serialize_landmarks(self, pose_landmarks) -> List[Dict]:
-        """Convierte landmarks de MediaPipe a formato JSON"""
+        """Convert MediaPipe landmarks to JSON format (only active landmarks)"""
         landmarks = []
         
-        for landmark in pose_landmarks:
-            landmarks.append({
-                'x': round(landmark.x, 4),
-                'y': round(landmark.y, 4),
-                'z': round(landmark.z, 4),
-                'visibility': round(landmark.visibility, 4)
-            })
+        # Explicitly filter to only active landmarks to avoid issues with missing points
+        for i in Config.ACTIVE_LANDMARKS:
+            if i < len(pose_landmarks):
+                landmark = pose_landmarks[i]
+                landmarks.append({
+                    'id': i,
+                    'x': round(landmark.x, 4),
+                    'y': round(landmark.y, 4),
+                    'z': round(landmark.z, 4),
+                    'visibility': round(landmark.visibility, 4)
+                })
         
         return landmarks
     
-    def extract_from_frame(self, frame, timestamp_ms: int = 0) -> Optional[List[Dict]]:
+    def _calculate_angles(self, landmarks: List[Dict]) -> Dict[str, float]:
+        """Calculate joint angles"""
+        angles = {}
+        
+        # Create lookup dict by ID
+        landmark_dict = {lm['id']: lm for lm in landmarks}
+        
+        for angle_name, (p1_id, vertex_id, p2_id) in Config.ANGLE_JOINTS.items():
+            if all(id in landmark_dict for id in [p1_id, vertex_id, p2_id]):
+                p1 = landmark_dict[p1_id]
+                vertex = landmark_dict[vertex_id]
+                p2 = landmark_dict[p2_id]
+                
+                # Only calculate if all points are visible
+                if all(pt['visibility'] > 0.5 for pt in [p1, vertex, p2]):
+                    angle = self._compute_angle(
+                        (p1['x'], p1['y'], p1['z']),
+                        (vertex['x'], vertex['y'], vertex['z']),
+                        (p2['x'], p2['y'], p2['z'])
+                    )
+                    angles[angle_name] = round(angle, 2)
+                else:
+                    angles[angle_name] = None
+            else:
+                angles[angle_name] = None
+        
+        return angles
+    
+    def _compute_angle(self, p1: Tuple[float, float, float], 
+                       vertex: Tuple[float, float, float],
+                       p2: Tuple[float, float, float]) -> float:
+        """Compute angle at vertex between p1-vertex-p2"""
+        # Vectors
+        v1 = np.array([p1[0] - vertex[0], p1[1] - vertex[1], p1[2] - vertex[2]])
+        v2 = np.array([p2[0] - vertex[0], p2[1] - vertex[1], p2[2] - vertex[2]])
+        
+        # Angle using dot product
+        cos_angle = np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2) + 1e-8)
+        cos_angle = np.clip(cos_angle, -1.0, 1.0)
+        angle_rad = np.arccos(cos_angle)
+        angle_deg = np.degrees(angle_rad)
+        
+        return angle_deg
+    
+    def _calculate_acceleration(self, landmarks: List[Dict], timestamp: float) -> Dict:
+        """Calculate acceleration for hands and feet"""
+        acceleration = {}
+        
+        if len(self.position_history) < 2:
+            # Not enough history yet
+            for point_name in Config.ACCELERATION_POINTS.keys():
+                acceleration[point_name] = {
+                    'magnitude': 0.0,
+                    'direction': {'x': 0.0, 'y': 0.0, 'z': 0.0}
+                }
+            return acceleration
+        
+        # Get previous positions
+        prev_landmarks, prev_timestamp = self.position_history[-1]
+        landmark_dict = {lm['id']: lm for lm in landmarks}
+        prev_dict = {lm['id']: lm for lm in prev_landmarks}
+        
+        dt = timestamp - prev_timestamp
+        if dt < 1e-6:
+            dt = 1e-6
+        
+        for point_name, point_id in Config.ACCELERATION_POINTS.items():
+            if point_id in landmark_dict and point_id in prev_dict:
+                curr = landmark_dict[point_id]
+                prev = prev_dict[point_id]
+                
+                if curr['visibility'] > 0.5 and prev['visibility'] > 0.5:
+                    # Velocity
+                    vx = (curr['x'] - prev['x']) / dt
+                    vy = (curr['y'] - prev['y']) / dt
+                    vz = (curr['z'] - prev['z']) / dt
+                    
+                    # If we have more history, calculate acceleration
+                    if len(self.position_history) >= 2:
+                        prev2_landmarks, prev2_timestamp = self.position_history[-2]
+                        prev2_dict = {lm['id']: lm for lm in prev2_landmarks}
+                        
+                        if point_id in prev2_dict:
+                            prev2 = prev2_dict[point_id]
+                            dt2 = prev_timestamp - prev2_timestamp
+                            if dt2 < 1e-6:
+                                dt2 = 1e-6
+                            
+                            vx_prev = (prev['x'] - prev2['x']) / dt2
+                            vy_prev = (prev['y'] - prev2['y']) / dt2
+                            vz_prev = (prev['z'] - prev2['z']) / dt2
+                            
+                            # Acceleration
+                            ax = (vx - vx_prev) / dt
+                            ay = (vy - vy_prev) / dt
+                            az = (vz - vz_prev) / dt
+                            
+                            magnitude = np.sqrt(ax**2 + ay**2 + az**2)
+                            
+                            acceleration[point_name] = {
+                                'magnitude': round(magnitude, 4),
+                                'direction': {
+                                    'x': round(ax, 4),
+                                    'y': round(ay, 4),
+                                    'z': round(az, 4)
+                                }
+                            }
+                            continue
+                
+                # Default values
+                acceleration[point_name] = {
+                    'magnitude': 0.0,
+                    'direction': {'x': 0.0, 'y': 0.0, 'z': 0.0}
+                }
+            else:
+                acceleration[point_name] = {
+                    'magnitude': 0.0,
+                    'direction': {'x': 0.0, 'y': 0.0, 'z': 0.0}
+                }
+        
+        return acceleration
+    
+    def _update_history(self, landmarks: List[Dict], timestamp: float):
+        """Update position history for acceleration calculation"""
+        self.position_history.append((landmarks, timestamp))
+    
+    def extract_from_frame(self, frame, timestamp_ms: int = 0) -> Optional[Dict]:
         """
-        Extrae pose de un frame individual (para tiempo real).
+        Extract pose from a single frame (for real-time use).
         
         Args:
-            frame: Frame de OpenCV (BGR)
-            timestamp_ms: Timestamp en milisegundos
+            frame: OpenCV frame (BGR)
+            timestamp_ms: Timestamp in milliseconds
         
         Returns:
-            Lista de landmarks o None
+            Dict with landmarks, angles, and acceleration or None
         """
-        # Convertir BGR a RGB
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         
-        # Crear MediaPipe Image
+        if Config.MIRROR_REFERENCE:
+            frame_rgb = cv2.flip(frame_rgb, 1)
+        
         mp_image = mp.Image(
             image_format=mp.ImageFormat.SRGB,
             data=frame_rgb
         )
         
-        # Detectar
         detection_result = self.detector.detect_for_video(mp_image, timestamp_ms)
         
         if detection_result.pose_landmarks and len(detection_result.pose_landmarks) > 0:
-            return self._serialize_landmarks(detection_result.pose_landmarks[0])
+            pose_landmarks = detection_result.pose_landmarks[0]
+            landmarks = self._serialize_landmarks(pose_landmarks)
+            angles = self._calculate_angles(landmarks)
+            timestamp = timestamp_ms / 1000.0
+            acceleration = self._calculate_acceleration(landmarks, timestamp)
+            self._update_history(landmarks, timestamp)
+            
+            return {
+                'landmarks': landmarks,
+                'angles': angles,
+                'acceleration': acceleration
+            }
         
         return None
     
@@ -256,68 +410,26 @@ class PoseExtractor:
             self.detector.close()
 
 
-# Constantes: índices de landmarks (33 puntos)
-class LandmarkIndex:
-    """Índices de los 33 landmarks de MediaPipe Pose"""
-    
-    NOSE = 0
-    LEFT_EYE_INNER = 1
-    LEFT_EYE = 2
-    LEFT_EYE_OUTER = 3
-    RIGHT_EYE_INNER = 4
-    RIGHT_EYE = 5
-    RIGHT_EYE_OUTER = 6
-    LEFT_EAR = 7
-    RIGHT_EAR = 8
-    MOUTH_LEFT = 9
-    MOUTH_RIGHT = 10
-    
-    LEFT_SHOULDER = 11
-    RIGHT_SHOULDER = 12
-    LEFT_ELBOW = 13
-    RIGHT_ELBOW = 14
-    LEFT_WRIST = 15
-    RIGHT_WRIST = 16
-    
-    LEFT_PINKY = 17
-    RIGHT_PINKY = 18
-    LEFT_INDEX = 19
-    RIGHT_INDEX = 20
-    LEFT_THUMB = 21
-    RIGHT_THUMB = 22
-    
-    LEFT_HIP = 23
-    RIGHT_HIP = 24
-    LEFT_KNEE = 25
-    RIGHT_KNEE = 26
-    LEFT_ANKLE = 27
-    RIGHT_ANKLE = 28
-    
-    LEFT_HEEL = 29
-    RIGHT_HEEL = 30
-    LEFT_FOOT_INDEX = 31
-    RIGHT_FOOT_INDEX = 32
-
-
 if __name__ == "__main__":
     import sys
     
     if len(sys.argv) < 2:
-        print("Uso: python pose_extractor.py <video.mp4>")
+        print("Usage: python pose_extractor.py <video.mp4>")
         sys.exit(1)
     
     video_path = sys.argv[1]
     
     try:
-        extractor = PoseExtractor(model_complexity='heavy')
+        Config.load()
+        extractor = PoseExtractor()
         data = extractor.extract_from_video(video_path)
         
-        output_path = "test_landmarker_extraction.json"
+        output_path = "test_extraction.json"
         with open(output_path, 'w') as f:
             json.dump(data, f, indent=2)
         
-        print(f"\n✅ Extracción completada. Ver: {output_path}")
+        print(f"\nExtraction completed. See: {output_path}")
         
     except FileNotFoundError as e:
-        print(f"\n❌ Error: {e}")
+        print(f"\nError: {e}")
         sys.exit(1)
