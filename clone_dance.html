@@ -26,8 +26,7 @@
             font-family: 'Rajdhani', sans-serif;
             background: linear-gradient(135deg, #0a0a0f 0%, #1a0a2e 100%);
             color: white;
-            overflow-x: hidden;
-            overflow-y: auto;
+            overflow: hidden;
             height: 100vh;
         }
         
@@ -115,16 +114,17 @@
         .game-container {
             flex: 1;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             padding: 20px;
             max-width: 1400px;
             margin: 0 auto;
             width: 100%;
+            min-height: 0;
         }
-        
         .main-panel {
-            height: calc(100vh - 220px);
+            max-height: 100vh;
             position: relative;
             background: rgba(26, 26, 46, 0.6);
             border-radius: 15px;
@@ -134,7 +134,8 @@
             backdrop-filter: blur(5px);
             width: 100%;
             max-width: 1200px;
-            
+            display: flex;
+            flex-direction: column;
         }
         
         .panel-header {
@@ -146,22 +147,38 @@
             letter-spacing: 2px;
             border-bottom: 2px solid var(--neon-blue);
             font-size: 0.9rem;
+
+            flex-shrink: 0;
+
         }
         
         canvas {
             position: absolute;
-            top: 50px;
+            top: 0;
             left: 0;
             width: 100%;
-            height: calc(100% - 50px);
+            height: 100%;
             display: block;
             pointer-events: none;
             z-index: 2;
+            object-fit: contain;
+        }
+
+        .video-container {
+            flex: 1;
+            position: relative;
+            min-height: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000;
         }
         
         video {
-            width: 100%;
-            height: calc(100% - 50px);
+            max-width: 100%;
+            max-height: 100%;
+            width: auto;
+            height: auto;
             display: block;
             object-fit: contain;
             background: #000;
@@ -209,8 +226,9 @@
         
         .calibration-preview {
             position: relative;
-            width: 640px;
-            height: 480px;
+            width: 100%;
+            max-width: 640px;
+            aspect-ratio: 4 / 3;
             margin: 20px auto;
             background: #000;
             border-radius: 10px;
@@ -261,11 +279,22 @@
         }
         
         .controls {
-            position: sticky;
-            bottom: 10px;
-            margin: 10px auto;
-            justify-content: center;
-            flex-wrap: wrap;
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            z-index: 10;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+
+        .video-container:hover .controls,
+        .controls:hover {
+            opacity: 1;
+            pointer-events: all;
         }
         
         button {
@@ -504,50 +533,56 @@
                     </div>
                 </div>
             </header>
+
+
+    
             
             <div class="game-container">
                 <div class="main-panel">
                     <div class="panel-header">Dance Match</div>
-                    <video id="referenceVideo" loop></video>
-                    <canvas id="playerCanvas"></canvas>
-                    <div class="combo-indicator" id="comboIndicator">COMBO x<span id="comboValue">0</span>!</div>
-                    <div class="feedback" id="feedback"></div>
+                    <div class="video-container">
+                        <video id="referenceVideo" loop></video>
+                        <canvas id="playerCanvas"></canvas>
+                        <div class="combo-indicator" id="comboIndicator">COMBO x<span id="comboValue">0</span>!</div>
+                        <div class="feedback" id="feedback"></div>
+                        <div class="controls">
+                            <button class="btn-primary" id="playPauseBtn">Play</button>
+                            <button class="btn-secondary" id="resetBtn">Reset</button>
+                            <button class="btn-secondary" id="recalibrateBtn">Recalibrate</button>
+                        </div>
+                    </div>
+                    
                 </div>
-            </div>
-            
-            <div class="controls">
-                <button class="btn-primary" id="playPauseBtn">Play</button>
-                <button class="btn-secondary" id="resetBtn">Reset</button>
-                <button class="btn-secondary" id="recalibrateBtn">Recalibrate</button>
             </div>
         </div>
         
         <div id="calibrationScreen" class="calibration-screen">
             <div class="calibration-content">
                 <h2>Initial Calibration</h2>
-                <p style="color: var(--neon-blue); margin-bottom: 20px;">
-                    Match the starting pose of the reference video
-                </p>
+               
                 
                 <div class="calibration-preview">
                     <canvas id="calibrationCanvas" class="calibration-canvas"></canvas>
                 </div>
                 
                 <div class="calibration-status">
-                    <div class="status-text" id="calibrationStatus">
-                        Detecting initial pose...
-                    </div>
+                     <div class="status-text" >
+                    Match the starting pose of the reference video
+                     </div>
                     <div class="progress-bar">
                         <div class="progress-fill" id="calibrationProgress"></div>
                     </div>
                     <div class="calibration-hint">
-                        Match required: <span id="matchPercentage">0%</span>
+                        <div class="status-text" id="calibrationStatus">
+                            Detecting initial pose...
+                        </div> <!--<span id="matchPercentage">0%</span>-->
                     </div>
+                    <button class="btn-secondary" id="skipCalibrationBtn" style="margin-top: 20px;">
+                        Skip calibration
+                    </button>
                 </div>
                 
-                <button class="btn-secondary" id="skipCalibrationBtn" style="margin-top: 20px;">
-                    Skip calibration
-                </button>
+
             </div>
         </div>
     </div>

@@ -86,9 +86,7 @@ async function initGame() {
         videoElement = document.getElementById('referenceVideo');
         videoElement.src = URL.createObjectURL(videoFile);
         
-        await new Promise((resolve) => {
-            videoElement.onloadedmetadata = () => resolve();
-        });
+        
 
         console.log("Initializing MediaPipe Pose...");
         pose = new Pose({
@@ -107,12 +105,25 @@ async function initGame() {
         pose.onResults(onPoseResults);
         
         canvas = document.getElementById('playerCanvas');
+
+        await new Promise((resolve) => {
+            videoElement.onloadedmetadata = () => {
+
+                
+                resolve();
+            };
+        });
+
+ 
+
         ctx = canvas.getContext('2d');
         calibrationCanvas = document.getElementById('calibrationCanvas');
         calibrationCtx = calibrationCanvas.getContext('2d');
 
-        canvas.width = videoElement.videoWidth;
-        canvas.height = videoElement.videoHeight;
+   
+
+        //canvas.width = videoElement.videoWidth;
+        //canvas.height = videoElement.videoHeight;
         calibrationCanvas.width = 640;
         calibrationCanvas.height = 480;
 
@@ -279,7 +290,7 @@ function handleCalibration(playerLandmarks) {
     const comparison = comparePoses(playerLandmarks, referencePose);
     const matchPercentage = (comparison.overall_score * 100).toFixed(0);
     
-    document.getElementById('matchPercentage').textContent = matchPercentage + '%';
+    //document.getElementById('matchPercentage').textContent = matchPercentage + '%';
     document.getElementById('calibrationProgress').style.width = matchPercentage + '%';
     
     if (comparison.overall_score >= GameConfig.MIN_CALIBRATION_QUALITY) {
