@@ -43,6 +43,21 @@ let positionSmoothHistory = {};
 let angleSmoothHistory = {};
 let accelerationSmoothHistory = {};
 
+this.KEYPOINTS_MIRROR_SWAP = [
+    [11, 12],
+    [13, 14],
+    [15, 16],
+    [23, 24],
+    [25, 26],
+    [27, 28],
+    [29, 30],
+    [31, 32]
+];
+
+
+
+
+
 // Event listeners
 document.getElementById('startBtn').addEventListener('click', initGame);
 document.getElementById('playPauseBtn').addEventListener('click', togglePlayPause);
@@ -315,11 +330,21 @@ async function initGame() {
 function applyMirror(landmarks) {
     if (!isMirrorEnabled || !landmarks) return landmarks;
 
-    // Mirror horizontally: x' = 1 - x
-    return landmarks.map(lm => ({
+    // Step 1: Mirror horizontally (x' = 1 - x)
+    const mirrored = landmarks.map(lm => ({
         ...lm,
         x: 1 - lm.x
     }));
+
+    // Step 2: Swap left-right landmarks
+    const swapped = [...mirrored];
+    for (const [leftIdx, rightIdx] of this.KEYPOINTS_MIRROR_SWAP) {
+        const temp = swapped[leftIdx];
+        swapped[leftIdx] = swapped[rightIdx];
+        swapped[rightIdx] = temp;
+    }
+
+    return swapped;
 }
 
 /**
@@ -518,6 +543,31 @@ function handleCalibration(playerLandmarks) {
     // Draw player skeleton
     drawCalibrationSkeleton(playerLandmarks, '#00ff88', true);
 
+
+    const refConverted = convertReferenceLandmarks(referencePose.landmarks);
+    for (let i = 0; i < playerLandmarks.length; i++) {
+        if (!playerLandmarks[i] || !refConverted[i]) continue;
+        if (playerLandmarks[i].visibility < 0.5 || refConverted[i].visibility < 0.5) continue;
+
+        const px = playerLandmarks[i].x * calibrationCanvas.width;
+        const py = playerLandmarks[i].y * calibrationCanvas.height;
+        const rx = refConverted[i].x * calibrationCanvas.width;
+        const ry = refConverted[i].y * calibrationCanvas.height;
+
+        const distance = Math.sqrt((px - rx) ** 2 + (py - ry) ** 2);
+
+        // Si coinciden (menos de 20px de distancia), iluminar en amarillo brillante
+        if (distance < 20) {
+            calibrationCtx.fillStyle = '#ffff00';
+            calibrationCtx.shadowBlur = 15;
+            calibrationCtx.shadowColor = '#ffff00';
+            calibrationCtx.beginPath();
+            calibrationCtx.arc(px, py, 8, 0, 2 * Math.PI);
+            calibrationCtx.fill();
+            calibrationCtx.shadowBlur = 0;
+        }
+    }
+
     // Calculate match
     const comparison = comparePoses(playerLandmarks, referencePose);
     const matchPercentage = (comparison.overall_score * 100).toFixed(0);
@@ -577,16 +627,23 @@ function calculateNormalization(playerLandmarks, referenceLandmarks) {
     const playerTorso = getTorsoSize(playerLandmarks);
     const refTorso = getTorsoSize(convertReferenceLandmarks(referenceLandmarks));
 
-    scaleFactorX = refTorso.width / playerTorso.width;
-    scaleFactorY = refTorso.height / playerTorso.height;
+    // Usar el promedio de ambos factores para mantener proporciones
+    const avgScale = (refTorso.width / playerTorso.width + refTorso.height / playerTorso.height) / 2;
+    scaleFactorX = avgScale;
+    scaleFactorY = avgScale;
 
     const playerCenter = getTorsoCenter(playerLandmarks);
     const refCenter = getTorsoCenter(convertReferenceLandmarks(referenceLandmarks));
 
-    offsetX = refCenter.x - (playerCenter.x * scaleFactorX);
-    offsetY = refCenter.y - (playerCenter.y * scaleFactorY);
+    // CORREGIDO: el offset es simplemente la diferencia entre centros
+    offsetX = refCenter.x - playerCenter.x;
+    offsetY = refCenter.y - playerCenter.y;
 
-    console.log('Calibration:', { scaleFactorX, scaleFactorY, offsetX, offsetY });
+    console.log('Calibration:', {
+        scaleFactorX, scaleFactorY, offsetX, offsetY,
+        playerCenter, refCenter,
+        playerTorso, refTorso
+    });
 }
 
 /**
@@ -624,8 +681,8 @@ function getTorsoCenter(landmarks) {
  */
 function normalizePose(landmarks) {
     return landmarks.map(lm => ({
-        x: lm.x * scaleFactorX + offsetX,
-        y: lm.y * scaleFactorY + offsetY,
+        x: (lm.x + offsetX) * scaleFactorX,
+        y: (lm.y + offsetY) * scaleFactorY,
         z: lm.z,
         visibility: lm.visibility
     }));
