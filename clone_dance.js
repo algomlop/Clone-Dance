@@ -243,10 +243,18 @@ async function initGame() {
         calibrationCanvas = document.getElementById('calibrationCanvas');
         calibrationCtx = calibrationCanvas.getContext('2d');
 
-        //canvas.width = videoElement.videoWidth;
-        //canvas.height = videoElement.videoHeight;
-        calibrationCanvas.width = 640;
-        calibrationCanvas.height = 480;
+        calibrationCanvas.width = calibrationVideo.videoWidth || 640;
+        calibrationCanvas.height = calibrationVideo.videoHeight || 480;
+
+        const calContainer = calibrationCanvas.parentElement;
+        const calVideoAspect = calibrationCanvas.width / calibrationCanvas.height;
+        const calContainerWidth = calContainer.clientWidth || 640;
+        const calContainerHeight = calContainerWidth / calVideoAspect;
+
+        calibrationCanvas.style.width = calContainerWidth + 'px';
+        calibrationCanvas.style.height = calContainerHeight + 'px';
+        calibrationVideo.style.width = calContainerWidth + 'px';
+        calibrationVideo.style.height = calContainerHeight + 'px';
 
         if (inputMode === 'webcam') {
             console.log("Setting up webcam...");

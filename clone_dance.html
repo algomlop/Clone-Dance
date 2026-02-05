@@ -194,6 +194,8 @@
             height: 1px;
         }
 
+
+
         .calibration-screen {
             position: fixed;
             top: 0;
@@ -213,13 +215,28 @@
         .calibration-screen.active {
             display: flex;
         }
-
+/*
         .calibration-content {
             text-align: center;
             max-width: 800px;
             padding: 20px;
             width: 100%;
-        }
+        }*/
+        .calibration-content {
+    text-align: center;
+    max-width: 800px;
+    width: 90%;
+    max-height: 95vh; /* Limita altura total */
+    overflow-y: auto; /* Scroll interno si es necesario */
+    background: rgba(26, 26, 46, 0.9);
+    padding: 20px; /* Reducido de 20px a algo más compacto */
+    border-radius: 15px;
+    border: 2px solid var(--neon-blue);
+    margin: auto; /* Centrado vertical cuando cabe */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
 
         .calibration-content h2 {
             font-family: 'Orbitron', sans-serif;
@@ -259,7 +276,7 @@
         }
 
         .calibration-status {
-            margin-top: 20px;
+           
             padding: 20px;
             background: rgba(26, 26, 46, 0.8);
             border-radius: 10px;
@@ -520,13 +537,27 @@
         }
 
         /* Frame slider styles */
+
         .frame-slider-container {
-            margin: 15px 0;
-            padding: 15px;
-            background: rgba(26, 26, 46, 0.8);
-            border-radius: 10px;
-            border: 2px solid var(--neon-purple);
-        }
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    padding: 15px 25px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+}
+
+.calibration-preview:hover .frame-slider-container {
+    opacity: 1;
+    pointer-events: auto;
+}
 
         .frame-slider-label {
             color: var(--neon-blue);
@@ -718,16 +749,17 @@
                 <div class="calibration-preview">
                     <video id="calibrationVideo" class="calibration-video" loop muted></video>
                     <canvas id="calibrationCanvas" class="calibration-canvas"></canvas>
-                </div>
-
-                <!-- Frame Slider -->
-                <div class="frame-slider-container">
-                    <label class="frame-slider-label">Select Reference Frame:</label>
-                    <input type="range" id="frameSlider" class="frame-slider" min="0" max="100" value="0">
-                    <div class="frame-time-display">
-                        <span id="currentTime">0.0</span>s / <span id="totalTime">0.0</span>s
+                    <!-- Frame Slider -->
+                    <div class="frame-slider-container">
+                        
+                        <input type="range" id="frameSlider" class="frame-slider" min="0" max="100" value="0">
+                        <div class="frame-time-display">
+                            <span id="currentTime">0.0</span>s / <span id="totalTime">0.0</span>s
+                        </div>
                     </div>
                 </div>
+
+                
 
                 <div class="calibration-status">
                     <div class="status-text">
@@ -749,8 +781,11 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+    <!--<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    -->
+    <script src="./cdn/pose.js"></script>
+    <script src="./cdn/camera_utils.js"></script>
     <script src="game_config.js"></script>
     <script src="clone_dance.js"></script>
 </body>

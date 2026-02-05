@@ -32,9 +32,9 @@ const GameConfig = {
     ACCELERATION_SMOOTHING: 0.2,
 
     // Scoring weights (must sum to 1.0)
-    POSITION_WEIGHT: 0.5,
-    ANGLE_WEIGHT: 0.3,
-    ACCELERATION_WEIGHT: 0.2,
+    POSITION_WEIGHT: 0.1,
+    ANGLE_WEIGHT: 0.0,
+    ACCELERATION_WEIGHT: 0.0,
 
     // Matching thresholds
     POSITION_THRESHOLD: 0.15,
