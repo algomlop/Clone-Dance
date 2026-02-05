@@ -541,7 +541,7 @@ function handleCalibration(playerLandmarks) {
     const referencePose = getReferencePoseAtTime(calibrationTime);
 
     if (!referencePose) {
-        document.getElementById('calibrationStatus').textContent = 'Error: No reference pose found';
+        document.getElementById('calibrationStatus').textContent = 'No reference pose found. Try another frame';
         return;
     }
 
