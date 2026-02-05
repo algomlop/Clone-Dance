@@ -1236,12 +1236,14 @@ function resizeCalibrationCanvas() {
     const contentPadding = 30; // 15px top + 15px bottom
 
     // Espacio disponible para el preview
-    const maxPreviewHeight = window.innerHeight * 0.95 - titleHeight - statusHeight - contentPadding - 30; // 30px extra margin
-    const maxPreviewWidth = calContent.clientWidth - 30; // padding lateral
+    const maxPreviewHeight = window.innerHeight * 0.6 - titleHeight - statusHeight - contentPadding - 30; // 30px extra margin
+    const maxPreviewWidth = window.innerWidth - 30; // padding lateral
 
     // Calcular tamaño respetando aspect ratio
     const videoAspect = videoWidth / videoHeight;
     const availableAspect = maxPreviewWidth / maxPreviewHeight;
+
+    console.log('window.innerHeight: ', window.innerHeight, ' videoAspect: ', videoAspect, ' availableAspect: ', availableAspect, 'titleHeight: ', titleHeight, ' statusHeight: ', statusHeight, ' contentPadding: ', contentPadding);
 
     let renderWidth, renderHeight;
 
