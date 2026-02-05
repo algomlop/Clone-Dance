@@ -215,12 +215,13 @@
             display: flex;
         }
 
-        .calibration-content {
+       /* .calibration-content {
             text-align: center;
             max-width: 800px;
             padding: 20px;
             width: 100%;
-        }
+        }*/
+        /*
 
         .calibration-content h2 {
             font-family: 'Orbitron', sans-serif;
@@ -228,8 +229,32 @@
           
             color: var(--neon-pink);
             text-shadow: 0 0 20px rgba(255, 0, 128, 0.6);
-        }
+        }*/
+        .calibration-content {
+    text-align: center;
+    max-width: 800px;
+    width: 90%;
+    max-height: 95vh; /* Limita altura total */
+    overflow-y: auto; /* Scroll interno si es necesario */
+    background: rgba(26, 26, 46, 0.9);
+    padding: 20px; /* Reducido de 20px a algo más compacto */
+    border-radius: 15px;
+    border: 2px solid var(--neon-blue);
+    margin: auto; /* Centrado vertical cuando cabe */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
 
+.calibration-content h2 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.5rem; /* Reducido de 2rem */
+    margin-bottom: 15px; /* Reducido de 20px */
+    color: var(--neon-pink);
+    text-shadow: 0 0 20px rgba(255, 0, 128, 0.6);
+    flex-shrink: 0;
+}
+        
         .calibration-preview {
             position: relative;
             width: 100%;
@@ -730,7 +755,7 @@
 
         <div id="calibrationScreen" class="calibration-screen">
             <div class="calibration-content">
-                <h2>Initial Calibration- Match the pose</h2>
+                <h2>Initial Calibration. Match the pose</h2>
 
                 <div class="calibration-preview">
                     <video id="calibrationVideo" class="calibration-video" loop muted></video>

@@ -171,7 +171,10 @@ function resizeCanvas() {
 }
 
 // Resize canvas when video metadata loads or window resizes
-window.addEventListener('resize', resizeCanvas);
+window.addEventListener('resize', () => {
+    resizeCanvas();
+    resizeCalibrationCanvas();
+});
 
 /**
  * Initialize the game
@@ -246,15 +249,13 @@ async function initGame() {
         calibrationCanvas.width = calibrationVideo.videoWidth || 640;
         calibrationCanvas.height = calibrationVideo.videoHeight || 480;
 
-        const calContainer = calibrationCanvas.parentElement;
-        const calVideoAspect = calibrationCanvas.width / calibrationCanvas.height;
-        const calContainerWidth = calContainer.clientWidth || 640;
-        const calContainerHeight = calContainerWidth / calVideoAspect;
+        calibrationCanvas.width = calibrationVideo.videoWidth || 640;
+        calibrationCanvas.height = calibrationVideo.videoHeight || 480;
 
-        calibrationCanvas.style.width = calContainerWidth + 'px';
-        calibrationCanvas.style.height = calContainerHeight + 'px';
-        calibrationVideo.style.width = calContainerWidth + 'px';
-        calibrationVideo.style.height = calContainerHeight + 'px';
+        // Llamar a la función de resize para ajustar al viewport
+        setTimeout(() => {
+            resizeCalibrationCanvas();
+        }, 100);
 
         if (inputMode === 'webcam') {
             console.log("Setting up webcam...");
@@ -1209,4 +1210,69 @@ function resetGame() {
 
     document.getElementById('playPauseBtn').textContent = 'Play';
     updateUI();
+}
+
+function resizeCalibrationCanvas() {
+    if (!calibrationCanvas || !calibrationVideo) return;
+
+    const videoWidth = calibrationVideo.videoWidth;
+    const videoHeight = calibrationVideo.videoHeight;
+
+    if (!videoWidth || !videoHeight) return;
+
+    // Calcular espacio disponible
+    const calContent = document.querySelector('.calibration-content');
+    if (!calContent) return;
+
+    const calPreview = document.querySelector('.calibration-preview');
+    const calStatus = document.querySelector('.calibration-status');
+
+    // Altura del título + margen
+    const titleHeight = 30; // h2 + margin
+    // Altura del status (text + progress + hint + button)
+    const statusHeight = calStatus ? calStatus.offsetHeight : 120;
+
+    // Padding del content
+    const contentPadding = 30; // 15px top + 15px bottom
+
+    // Espacio disponible para el preview
+    const maxPreviewHeight = window.innerHeight * 0.95 - titleHeight - statusHeight - contentPadding - 30; // 30px extra margin
+    const maxPreviewWidth = calContent.clientWidth - 30; // padding lateral
+
+    // Calcular tamaño respetando aspect ratio
+    const videoAspect = videoWidth / videoHeight;
+    const availableAspect = maxPreviewWidth / maxPreviewHeight;
+
+    let renderWidth, renderHeight;
+
+    if (availableAspect > videoAspect) {
+        renderHeight = Math.min(maxPreviewHeight, videoHeight);
+        renderWidth = renderHeight * videoAspect;
+    } else {
+        renderWidth = Math.min(maxPreviewWidth, videoWidth);
+        renderHeight = renderWidth / videoAspect;
+    }
+
+    // Ajustar el contenedor preview
+    if (calPreview) {
+        calPreview.style.height = renderHeight + 'px';
+        calPreview.style.width = renderWidth + 'px';
+        calPreview.style.margin = '0 auto 15px auto';
+    }
+
+    // Canvas interno y display
+    calibrationCanvas.width = videoWidth;
+    calibrationCanvas.height = videoHeight;
+    calibrationCanvas.style.width = renderWidth + 'px';
+    calibrationCanvas.style.height = renderHeight + 'px';
+    calibrationCanvas.style.left = '0px';
+    calibrationCanvas.style.top = '0px';
+
+    // Video
+    calibrationVideo.style.width = renderWidth + 'px';
+    calibrationVideo.style.height = renderHeight + 'px';
+    calibrationVideo.style.left = '0px';
+    calibrationVideo.style.top = '0px';
+
+    console.log('Calibration canvas resized:', renderWidth, 'x', renderHeight);
 }
