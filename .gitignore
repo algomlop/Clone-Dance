@@ -1,2 +1,3 @@
-__pycache__/pose_extractor.cpython-313.pyc
+*.pyc
+yo.*
 

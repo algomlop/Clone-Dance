@@ -645,8 +645,10 @@ function calculateNormalization(playerLandmarks, referenceLandmarks) {
     const refCenter = getTorsoCenter(convertReferenceLandmarks(referenceLandmarks));
 
     // CORREGIDO: el offset es simplemente la diferencia entre centros
-    offsetX = refCenter.x - playerCenter.x;
-    offsetY = refCenter.y - playerCenter.y;
+    //offsetX = refCenter.x - playerCenter.x;
+    //offsetY = refCenter.y - playerCenter.y;
+    offsetX = refCenter.x - (playerCenter.x * scaleFactorX);
+    offsetY = refCenter.y - (playerCenter.y * scaleFactorY);
 
     console.log('Calibration:', {
         scaleFactorX, scaleFactorY, offsetX, offsetY,
@@ -690,8 +692,10 @@ function getTorsoCenter(landmarks) {
  */
 function normalizePose(landmarks) {
     return landmarks.map(lm => ({
-        x: (lm.x + offsetX) * scaleFactorX,
-        y: (lm.y + offsetY) * scaleFactorY,
+        //x: (lm.x + offsetX) * scaleFactorX,
+        x: lm.x * scaleFactorX + offsetX,
+        //y: (lm.y + offsetY) * scaleFactorY,
+        y: lm.y * scaleFactorY + offsetY,
         z: lm.z,
         visibility: lm.visibility
     }));
