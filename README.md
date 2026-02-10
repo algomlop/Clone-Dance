@@ -1,7 +1,7 @@
 # Clone Dance
 ### The cross-platform and opensource dance game
 
-**Pre-alpha version**
+**Status: Pre-alpha version**
 
 
 ## Usage
