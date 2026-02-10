@@ -14,6 +14,11 @@ python process_video.py --video FILE.mp4 --name "NAME"
 
 ### Visualize the choreography (check it's OK)
 
+Open in Chrome Desktop (only tested here):
+https://algomlop.github.io/Clone-Dance/visualizer.html
+
+OR
+
 1. Start the HTTP server:
 ```bash
    python -m http.server
@@ -25,6 +30,11 @@ python process_video.py --video FILE.mp4 --name "NAME"
 ```
 
 ### Play the game (not enjoyable yet)
+
+Open in Chrome Desktop (only tested here):
+https://algomlop.github.io/Clone-Dance/clone_dance.html
+
+OR
 
 1. Start the HTTP server:
 ```bash
