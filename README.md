@@ -1,6 +1,8 @@
 # Clone Dance
+### The cross-platform and opensource dance game
 
-**Pre-pre-pre-alpha version**
+**Pre-alpha version**
+
 
 ## Usage
 
@@ -38,5 +40,6 @@ python process_video.py --video FILE.mp4 --name "NAME"
 
 - [ ] Make an enjoyable game
 - [ ] Add visual effects
-- [ ] Fine-tune the detection and scoring strategy (position vs angle)
+- [ ] Fine-tune the detection and scoring strategy (position vs angle). Skip calibration if only angles.
 - [ ] Finish this TODO list
+
