@@ -1,5 +1,5 @@
 # Clone Dance
-### The cross-platform and opensource dance game
+### The cross-platform and open-source dance game
 
 **Status: Pre-alpha version**
 
@@ -33,20 +33,23 @@ python process_video.py --video FILE.mp4 --name "NAME"
 
 2. Open in Chrome Desktop (only tested here):
 ```
-   http://localhost:8000/clone_hero.html
+   http://localhost:8000/clone_dance.html
 ```
 
 ## TODO
 
 - [ ] Make an enjoyable game
 - [ ] Add visual effects
-- [ ] Fine-tune the detection and scoring strategy (position vs angle). Skip calibration if only angles.
-- [ ] Add dificulty levels
+- [ ] Fine-tune the detection and scoring strategy (position vs angle). I think it's better only angles. Skip calibration if only angles.
+- [ ] Add difficulty levels
 - [ ] Add speed control
 - [ ] Test in more devices (smartphones and other browsers)
 - [ ] Preview next pose
 - [ ] Local multiplayer (now is limited to one person in the reference and the live video)
 - [ ] Finish this TODO list
+- [ ] From JD 2, the videos have camera movements and zooms. I don't know if these videos could be used.
+- [ ] Choreography (JSON) editor
+
 
 Made with love and AI
 
