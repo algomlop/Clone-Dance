@@ -1,6 +1,6 @@
 """
 Pose extractor using MediaPipe Pose Landmarker.
-Extracts poses with position, angles, and acceleration data.
+Extracts poses with position and angles data.
 """
 
 import cv2
@@ -25,7 +25,6 @@ class PoseExtractor:
     Extracts poses from video with:
     - Position data (x, y, z, visibility)
     - Joint angles
-    - Hand/foot acceleration (magnitude and direction)
     """
     
     def __init__(self, 
@@ -59,8 +58,6 @@ class PoseExtractor:
         
         self.detector = vision.PoseLandmarker.create_from_options(self.options)
         
-        # History for acceleration calculation
-        self.position_history = deque(maxlen=Config.ACCELERATION_HISTORY_FRAMES)
         
         logger.info(f"PoseLandmarkerExtractor initialized with model: {self.model_complexity}")
     
@@ -90,7 +87,7 @@ class PoseExtractor:
     
     def extract_from_video(self, video_path: str, skip_frames: int = None) -> Dict:
         """
-        Extract all poses from a video with position, angles, and acceleration.
+        Extract all poses from a video with position and angles
         
         Args:
             video_path: Path to video file
@@ -179,7 +176,7 @@ class PoseExtractor:
         }
     
     def _process_frame(self, frame, frame_number: int, fps: float) -> Optional[Dict]:
-        """Process individual frame and extract landmarks with angles and acceleration"""
+        """Process individual frame and extract landmarks with angles"""
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         
         # Mirror if configured
@@ -207,18 +204,13 @@ class PoseExtractor:
         # Calculate angles
         angles = self._calculate_angles(landmarks)
         
-        # Calculate acceleration (needs history)
-        acceleration = self._calculate_acceleration(landmarks, timestamp)
-        
-        # Store current positions in history
-        self._update_history(landmarks, timestamp)
+
         
         return {
             'timestamp': round(timestamp, 3),
             'frame': frame_number,
             'landmarks': landmarks,
-            'angles': angles,
-            'acceleration': acceleration
+            'angles': angles
         }
     
     def _serialize_landmarks(self, pose_landmarks) -> List[Dict]:
@@ -283,87 +275,6 @@ class PoseExtractor:
         
         return angle_deg
     
-    def _calculate_acceleration(self, landmarks: List[Dict], timestamp: float) -> Dict:
-        """Calculate acceleration for hands and feet"""
-        acceleration = {}
-        
-        if len(self.position_history) < 2:
-            # Not enough history yet
-            for point_name in Config.ACCELERATION_POINTS.keys():
-                acceleration[point_name] = {
-                    'magnitude': 0.0,
-                    'direction': {'x': 0.0, 'y': 0.0, 'z': 0.0}
-                }
-            return acceleration
-        
-        # Get previous positions
-        prev_landmarks, prev_timestamp = self.position_history[-1]
-        landmark_dict = {lm['id']: lm for lm in landmarks}
-        prev_dict = {lm['id']: lm for lm in prev_landmarks}
-        
-        dt = timestamp - prev_timestamp
-        if dt < 1e-6:
-            dt = 1e-6
-        
-        for point_name, point_id in Config.ACCELERATION_POINTS.items():
-            if point_id in landmark_dict and point_id in prev_dict:
-                curr = landmark_dict[point_id]
-                prev = prev_dict[point_id]
-                
-                if curr['visibility'] > 0.5 and prev['visibility'] > 0.5:
-                    # Velocity
-                    vx = (curr['x'] - prev['x']) / dt
-                    vy = (curr['y'] - prev['y']) / dt
-                    vz = (curr['z'] - prev['z']) / dt
-                    
-                    # If we have more history, calculate acceleration
-                    if len(self.position_history) >= 2:
-                        prev2_landmarks, prev2_timestamp = self.position_history[-2]
-                        prev2_dict = {lm['id']: lm for lm in prev2_landmarks}
-                        
-                        if point_id in prev2_dict:
-                            prev2 = prev2_dict[point_id]
-                            dt2 = prev_timestamp - prev2_timestamp
-                            if dt2 < 1e-6:
-                                dt2 = 1e-6
-                            
-                            vx_prev = (prev['x'] - prev2['x']) / dt2
-                            vy_prev = (prev['y'] - prev2['y']) / dt2
-                            vz_prev = (prev['z'] - prev2['z']) / dt2
-                            
-                            # Acceleration
-                            ax = (vx - vx_prev) / dt
-                            ay = (vy - vy_prev) / dt
-                            az = (vz - vz_prev) / dt
-                            
-                            magnitude = np.sqrt(ax**2 + ay**2 + az**2)
-                            
-                            acceleration[point_name] = {
-                                'magnitude': round(magnitude, 4),
-                                'direction': {
-                                    'x': round(ax, 4),
-                                    'y': round(ay, 4),
-                                    'z': round(az, 4)
-                                }
-                            }
-                            continue
-                
-                # Default values
-                acceleration[point_name] = {
-                    'magnitude': 0.0,
-                    'direction': {'x': 0.0, 'y': 0.0, 'z': 0.0}
-                }
-            else:
-                acceleration[point_name] = {
-                    'magnitude': 0.0,
-                    'direction': {'x': 0.0, 'y': 0.0, 'z': 0.0}
-                }
-        
-        return acceleration
-    
-    def _update_history(self, landmarks: List[Dict], timestamp: float):
-        """Update position history for acceleration calculation"""
-        self.position_history.append((landmarks, timestamp))
     
     def extract_from_frame(self, frame, timestamp_ms: int = 0) -> Optional[Dict]:
         """
@@ -374,7 +285,7 @@ class PoseExtractor:
             timestamp_ms: Timestamp in milliseconds
         
         Returns:
-            Dict with landmarks, angles, and acceleration or None
+            Dict with landmarks and angles or None
         """
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         
@@ -392,14 +303,11 @@ class PoseExtractor:
             pose_landmarks = detection_result.pose_landmarks[0]
             landmarks = self._serialize_landmarks(pose_landmarks)
             angles = self._calculate_angles(landmarks)
-            timestamp = timestamp_ms / 1000.0
-            acceleration = self._calculate_acceleration(landmarks, timestamp)
-            self._update_history(landmarks, timestamp)
+
             
             return {
                 'landmarks': landmarks,
-                'angles': angles,
-                'acceleration': acceleration
+                'angles': angles
             }
         
         return None

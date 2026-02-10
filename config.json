@@ -1,14 +1,5 @@
 {
-  "ACCELERATION_HISTORY_FRAMES": 3,
-  "ACCELERATION_POINTS": {
-    "left_hand": 15,
-    "right_hand": 16,
-    "left_foot": 27,
-    "right_foot": 28
-  },
-  "ACCELERATION_SMOOTHING": 0.2,
-  "ACCELERATION_THRESHOLD": 0.5,
-  "ACCELERATION_WEIGHT": 0.2,
+
   "ACTIVE_LANDMARKS": [
     0,
     11,

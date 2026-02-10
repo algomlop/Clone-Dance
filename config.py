@@ -62,19 +62,8 @@ class Config:
         'left_knee': (23, 25, 27),       # Hip-Knee-Ankle
         'right_knee': (24, 26, 28),
     }
-    
-    # ===== ACCELERATION CALCULATION =====
-    # Number of previous frames to store for velocity/acceleration calculation
-    ACCELERATION_HISTORY_FRAMES = 3
-    
-    # Key points for acceleration tracking
-    ACCELERATION_POINTS = {
-        'left_hand': 15,   # Left wrist
-        'right_hand': 16,  # Right wrist
-        'left_foot': 27,   # Left ankle
-        'right_foot': 28,  # Right ankle
-    }
-    
+
+
     # ===== TEMPORAL SMOOTHING =====
     # Exponential Moving Average (EMA) alpha for smoothing
     # 0.0 = heavy smoothing (slow), 1.0 = no smoothing (instant)
@@ -83,13 +72,13 @@ class Config:
     # Smoothing applied to different metrics
     POSITION_SMOOTHING = 0.3
     ANGLE_SMOOTHING = 0.4
-    ACCELERATION_SMOOTHING = 0.2
+
     
     # ===== SCORING WEIGHTS =====
     # How much each metric contributes to the final score (must sum to 1.0)
     POSITION_WEIGHT = 0.5      # Weight for position matching
-    ANGLE_WEIGHT = 0.3         # Weight for angle matching
-    ACCELERATION_WEIGHT = 0.2  # Weight for acceleration matching
+    ANGLE_WEIGHT = 0.5         # Weight for angle matching
+
     
     # ===== MATCHING THRESHOLDS =====
     # Position threshold (normalized coordinate distance)
@@ -98,9 +87,7 @@ class Config:
     # Angle threshold (degrees)
     ANGLE_THRESHOLD = 20.0
     
-    # Acceleration threshold (normalized units)
-    ACCELERATION_THRESHOLD = 0.5
-    
+
     # ===== MIRROR MODE =====
     # Mirror the reference video to compensate for webcam mirror effect
     MIRROR_REFERENCE = True

@@ -15,31 +15,19 @@ const GameConfig = {
         'right_knee': [24, 26, 28]
     },
 
-    // Acceleration tracking points
-    ACCELERATION_POINTS: {
-        'left_hand': 15,
-        'right_hand': 16,
-        'left_foot': 27,
-        'right_foot': 28
-    },
 
-    // Acceleration history frames
-    ACCELERATION_HISTORY_FRAMES: 3,
 
     // Temporal smoothing (EMA alpha)
     POSITION_SMOOTHING: 0.3,
     ANGLE_SMOOTHING: 0.4,
-    ACCELERATION_SMOOTHING: 0.2,
 
     // Scoring weights (must sum to 1.0)
     POSITION_WEIGHT: 0.8,
     ANGLE_WEIGHT: 0.2,
-    ACCELERATION_WEIGHT: 0.0,
 
     // Matching thresholds
     POSITION_THRESHOLD: 0.15,
     ANGLE_THRESHOLD: 20.0,  // degrees
-    ACCELERATION_THRESHOLD: 0.5,
 
     // Scoring parameters
     COMBO_THRESHOLD: 0.6,

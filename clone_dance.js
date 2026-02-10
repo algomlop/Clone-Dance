@@ -1,6 +1,6 @@
 /**
  * Clone Dance - Main Game Logic
- * Includes pose comparison with positions, angles, and acceleration
+ * Includes pose comparison with positions and angles
  */
 
 // Game state
@@ -36,13 +36,11 @@ let offsetY = 0;
 // Calibration
 let calibrationFrames = 0;
 
-// Position history for acceleration calculation
-let positionHistory = [];
 
 // Smoothing histories
 let positionSmoothHistory = {};
 let angleSmoothHistory = {};
-let accelerationSmoothHistory = {};
+
 
 this.KEYPOINTS_MIRROR_SWAP = [
     [11, 12],
@@ -399,8 +397,7 @@ function onPoseResults(results) {
         } else {
             const neutralComparison = {
                 position: { matches: {} },
-                angles: { matches: {} },
-                acceleration: { matches: {} }
+                angles: { matches: {} }
             };
             drawSkeletonOnVideo(currentPlayerPose, neutralComparison);
         }
@@ -414,10 +411,8 @@ function startCalibration() {
     isCalibrated = false;
     isPlaying = false;
     calibrationFrames = 0;
-    positionHistory = [];
     positionSmoothHistory = {};
     angleSmoothHistory = {};
-    accelerationSmoothHistory = {};
 
     // Reset videos to start
     videoElement.currentTime = 0;
@@ -742,7 +737,7 @@ function getCurrentReferencePose() {
 }
 
 /**
- * Compare poses with positions, angles, and acceleration
+ * Compare poses with positions and angles
  */
 function comparePoses(playerLandmarks, referencePose) {
     const normalizedPlayer = normalizePose(playerLandmarks);
@@ -762,21 +757,11 @@ function comparePoses(playerLandmarks, referencePose) {
         angleResult = { score: 0, accuracy: 0, matches: {} };
     }
 
-    // Calculate and compare acceleration
-    let accelResult;
-    if (GameConfig.ACCELERATION_WEIGHT > 0.0) {
-        const playerAccel = calculateAcceleration(normalizedPlayer);
-        const refAccel = referencePose.acceleration || {};
-        accelResult = compareAcceleration(playerAccel, refAccel);
-    } else {
-        accelResult = { score: 0, accuracy: 0, matches: {} };
-    }
 
     // Weighted overall score
     const overall_score = (
         GameConfig.POSITION_WEIGHT * positionResult.score +
-        GameConfig.ANGLE_WEIGHT * angleResult.score +
-        GameConfig.ACCELERATION_WEIGHT * accelResult.score
+        GameConfig.ANGLE_WEIGHT * angleResult.score
     );
 
     // Update game score if playing
@@ -787,8 +772,7 @@ function comparePoses(playerLandmarks, referencePose) {
     return {
         overall_score: overall_score,
         position: positionResult,
-        angles: angleResult,
-        acceleration: accelResult
+        angles: angleResult
     };
 }
 
@@ -924,113 +908,6 @@ function compareAngles(playerAngles, refAngles) {
     return { score, accuracy, matches, avgDifference: avgDiff };
 }
 
-/**
- * Calculate acceleration for hands and feet
- */
-function calculateAcceleration(landmarks) {
-    const acceleration = {};
-
-    // Store current positions
-    const currentPositions = {};
-    for (const [pointName, pointId] of Object.entries(GameConfig.ACCELERATION_POINTS)) {
-        const lm = landmarks[pointId];
-        if (lm && lm.visibility > 0.5) {
-            currentPositions[pointName] = { x: lm.x, y: lm.y, z: lm.z };
-        }
-    }
-
-    // Add to history
-    positionHistory.push(currentPositions);
-    if (positionHistory.length > GameConfig.ACCELERATION_HISTORY_FRAMES) {
-        positionHistory.shift();
-    }
-
-    // Calculate acceleration if we have enough history
-    if (positionHistory.length >= 3) {
-        const curr = positionHistory[positionHistory.length - 1];
-        const prev = positionHistory[positionHistory.length - 2];
-        const prev2 = positionHistory[positionHistory.length - 3];
-
-        for (const pointName of Object.keys(GameConfig.ACCELERATION_POINTS)) {
-            if (curr[pointName] && prev[pointName] && prev2[pointName]) {
-                // Velocity at t and t-1
-                const vx = curr[pointName].x - prev[pointName].x;
-                const vy = curr[pointName].y - prev[pointName].y;
-                const vz = curr[pointName].z - prev[pointName].z;
-
-                const vx_prev = prev[pointName].x - prev2[pointName].x;
-                const vy_prev = prev[pointName].y - prev2[pointName].y;
-                const vz_prev = prev[pointName].z - prev2[pointName].z;
-
-                // Acceleration
-                const ax = vx - vx_prev;
-                const ay = vy - vy_prev;
-                const az = vz - vz_prev;
-
-                const magnitude = Math.sqrt(ax * ax + ay * ay + az * az);
-
-                acceleration[pointName] = {
-                    magnitude: magnitude,
-                    direction: { x: ax, y: ay, z: az }
-                };
-            } else {
-                acceleration[pointName] = {
-                    magnitude: 0,
-                    direction: { x: 0, y: 0, z: 0 }
-                };
-            }
-        }
-    } else {
-        for (const pointName of Object.keys(GameConfig.ACCELERATION_POINTS)) {
-            acceleration[pointName] = {
-                magnitude: 0,
-                direction: { x: 0, y: 0, z: 0 }
-            };
-        }
-    }
-
-    return acceleration;
-}
-
-/**
- * Compare acceleration
- */
-function compareAcceleration(playerAccel, refAccel) {
-    const matches = {};
-    let totalDiff = 0;
-    let count = 0;
-    let matchedCount = 0;
-
-    for (const [pointName, playerData] of Object.entries(playerAccel)) {
-        const refData = refAccel[pointName];
-        if (!refData) {
-            matches[pointName] = null;
-            continue;
-        }
-
-        let accelDiff = Math.abs(playerData.magnitude - refData.magnitude);
-
-        // Apply smoothing
-        if (accelerationSmoothHistory[pointName] !== undefined) {
-            accelDiff = GameConfig.ACCELERATION_SMOOTHING * accelDiff +
-                (1 - GameConfig.ACCELERATION_SMOOTHING) * accelerationSmoothHistory[pointName];
-        }
-        accelerationSmoothHistory[pointName] = accelDiff;
-
-        totalDiff += accelDiff;
-        count++;
-
-        const isMatch = accelDiff < GameConfig.ACCELERATION_THRESHOLD;
-        matches[pointName] = isMatch;
-        if (isMatch) matchedCount++;
-    }
-
-    const avgDiff = totalDiff / count || 1.0;
-    const score = Math.max(0, 1.0 - avgDiff);
-    const accuracy = matchedCount / count || 0;
-
-    return { score, accuracy, matches, avgDifference: avgDiff };
-}
 
 /**
  * Draw skeleton on video canvas
@@ -1223,10 +1100,8 @@ function resetGame() {
     combo = 0;
     totalFrames = 0;
     matchedFrames = 0;
-    positionHistory = [];
     positionSmoothHistory = {};
     angleSmoothHistory = {};
-    accelerationSmoothHistory = {};
 
     videoElement.currentTime = 0;
     isPlaying = false;

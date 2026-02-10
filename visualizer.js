@@ -1,6 +1,6 @@
 /**
  * Clone Dance Visualizer - JavaScript
- * Renders videos with pose landmarks, angles, and acceleration overlay
+ * Renders videos with pose landmarks and angles overlay
  */
 
 class DanceVisualizer {
@@ -28,7 +28,6 @@ class DanceVisualizer {
         // Info panels
         this.totalPosesEl = document.getElementById('totalPoses');
         this.currentPoseEl = document.getElementById('currentPose');
-        this.avgAccelEl = document.getElementById('avgAccel');
         this.durationEl = document.getElementById('duration');
         
         // State
@@ -208,7 +207,6 @@ class DanceVisualizer {
         const metadata = this.choreography.metadata;
         
         this.totalPosesEl.textContent = stats.total_poses;
-        this.avgAccelEl.textContent = stats.avg_acceleration.toFixed(4);
         this.durationEl.textContent = stats.duration.toFixed(1) + 's';
     }
     

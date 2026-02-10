@@ -121,22 +121,12 @@ class ChoreographyProcessor:
         duration = metadata['duration']
         fps_effective = total_poses / duration if duration > 0 else 0
         
-        # Calculate average acceleration
-        total_accel = 0.0
-        accel_count = 0
-        
-        for pose in poses:
-            for point_data in pose['acceleration'].values():
-                total_accel += point_data['magnitude']
-                accel_count += 1
-        
-        avg_acceleration = total_accel / accel_count if accel_count > 0 else 0.0
+
         
         return {
             'total_poses': total_poses,
             'fps_effective': round(fps_effective, 2),
-            'duration': duration,
-            'avg_acceleration': round(avg_acceleration, 4)
+            'duration': duration
         }
     
     def _save_choreography(self, choreography: dict, name: str, 
@@ -169,7 +159,6 @@ class ChoreographyProcessor:
         logger.info(f"Duration: {metadata['duration']:.1f}s")
         logger.info(f"Total poses: {stats['total_poses']}")
         logger.info(f"Effective FPS: {stats['fps_effective']:.1f}")
-        logger.info(f"Average acceleration: {stats['avg_acceleration']:.4f}")
         logger.info(f"\nSaved to: {output_path}")
         logger.info("="*70 + "\n")
 
