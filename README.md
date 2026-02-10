@@ -46,9 +46,9 @@ python process_video.py --video FILE.mp4 --name "NAME"
 - [ ] Test in more devices (smartphones and other browsers)
 - [ ] Preview next pose
 - [ ] Local multiplayer (now is limited to one person in the reference and the live video)
-- [ ] Finish this TODO list
 - [ ] From JD 2, the videos have camera movements and zooms. I don't know if these videos could be used.
 - [ ] Choreography (JSON) editor
+- [ ] Finish this TODO list
 
 
 Made with love and AI
