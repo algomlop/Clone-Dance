@@ -18,6 +18,12 @@ let score = 0;
 let combo = 0;
 let totalFrames = 0;
 let matchedFrames = 0;
+let currentAccuracy = 0;
+let lastScoreTimeSec = null;
+let goodTimeAccumSec = 0;
+let goodStreakSec = 0;
+let angleDebugEl = null;
+let lastAngleDebugUpdateMs = 0;
 let isPlaying = false;
 let isCalibrated = false;
 let currentPlayerPose = null;
@@ -25,6 +31,7 @@ let currentPlayerPose = null;
 // Settings
 let isMirrorEnabled = null;
 let effectsEnabled = null;
+let debugEnabled = null;
 let calibrationTime = 0;
 
 // Normalization factors (from calibration)
@@ -82,6 +89,11 @@ getGameConfig()
         if (effectsToggle) {
             effectsToggle.classList.toggle('active', !!effectsEnabled);
         }
+
+        const debugToggle = document.getElementById('debugToggle');
+        if (debugToggle) {
+            debugToggle.classList.toggle('active', !!debugEnabled);
+        }
     })
     .catch((error) => {
         console.error('Failed to initialize game config:', error);
@@ -111,9 +123,14 @@ document.getElementById('enable-effectsToggle').addEventListener('click', () => 
     const toggle = document.getElementById('enable-effectsToggle');
     effectsEnabled = !effectsEnabled;
     toggle.classList.toggle('active', effectsEnabled);
-
-
     console.log('Effects enabled:', effectsEnabled);
+});
+
+document.getElementById('debugToggle').addEventListener('click', () => {
+    const toggle = document.getElementById('debugToggle');
+    debugEnabled = !debugEnabled;
+    toggle.classList.toggle('active', debugEnabled);
+    console.log('Debug enabled:', debugEnabled);
 });
 
 // Frame slider
@@ -423,18 +440,21 @@ function onPoseResults(results) {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    if (currentPlayerPose) {
+    if (currentPlayerPose && currentPlayerPose.length > 0) {
         const referencePose = getCurrentReferencePose();
 
-        if (referencePose && isPlaying) {
+        // Only compare if both poses are valid
+        if (referencePose && referencePose.landmarks && referencePose.landmarks.length > 0 && isPlaying) {
             const comparison = comparePoses(currentPlayerPose, referencePose);
-            drawSkeletonOnVideo(currentPlayerPose, comparison);
+            if(debugEnabled)
+                drawSkeletonOnVideo(currentPlayerPose, comparison);
         } else {
             const neutralComparison = {
                 position: { matches: {} },
                 angles: { matches: {} }
             };
-            drawSkeletonOnVideo(currentPlayerPose, neutralComparison);
+            if(debugEnabled)
+                drawSkeletonOnVideo(currentPlayerPose, neutralComparison);
         }
     }
 }
@@ -498,6 +518,11 @@ function startGameAfterCalibration() {
 
     if (!isPlaying) {
         isPlaying = true;
+        lastScoreTimeSec = getGameTimeSec();
+        goodTimeAccumSec = 0;
+        goodStreakSec = 0;
+        combo = 0;
+        updateComboIndicator();
 
         // Try to play reference video
         videoElement.muted = false;
@@ -772,15 +797,7 @@ function getFirstReferencePose() {
     return getReferencePoseAtTime(0);
 }
 
-/**
- * Get current reference pose based on video time
- */
-function getCurrentReferencePose() {
-    if (!referenceData || !videoElement) return null;
 
-    const currentTime = videoElement.currentTime;
-    return getReferencePoseAtTime(currentTime);
-}
 
 /**
  * Compare poses with positions and angles
@@ -791,7 +808,14 @@ function comparePoses(playerLandmarks, referencePose) {
 
     // Compare positions
 
-    let positionResult =comparePositions(normalizedPlayer, refLandmarks);
+    let positionResult;
+    if (GameConfig.POSITION_WEIGHT > 0.0 || debugEnabled) {
+        positionResult = comparePositions(normalizedPlayer, refLandmarks);
+    }
+    else {        
+        positionResult = { score: 0, accuracy: 0, matches: {} };
+    }
+    
 
     // Calculate and compare angles
     let angleResult;
@@ -804,16 +828,26 @@ function comparePoses(playerLandmarks, referencePose) {
     }
 
 
-    // Weighted overall score
-    const overall_score = (
-        GameConfig.POSITION_WEIGHT * positionResult.score +
-        GameConfig.ANGLE_WEIGHT * angleResult.score
-    );
+    // Weighted overall accuracy (normalized by weights)
+    const weightSum = GameConfig.POSITION_WEIGHT + GameConfig.ANGLE_WEIGHT;
+    let overall_score = 0;
+    if (weightSum > 0) {
+        overall_score = (
+            GameConfig.POSITION_WEIGHT * positionResult.accuracy +
+            GameConfig.ANGLE_WEIGHT * angleResult.accuracy
+        ) / weightSum;
+    } else {
+        overall_score = angleResult.accuracy || 0;
+    }
 
     // Update game score if playing
     if (isPlaying) {
-        updateScore(overall_score);
+        const nowTimeSec = getGameTimeSec();
+        updateScore(angleResult.accuracy, nowTimeSec);
     }
+
+    if (debugEnabled)
+        updateAngleDebugOverlay(angleResult);
 
     return {
         overall_score: overall_score,
@@ -897,18 +931,16 @@ function calculateAngles(landmarks) {
 function computeAngle(p1, vertex, p2) {
     const v1 = {
         x: p1.x - vertex.x,
-        y: p1.y - vertex.y,
-        z: p1.z - vertex.z
+        y: p1.y - vertex.y
     };
     const v2 = {
         x: p2.x - vertex.x,
-        y: p2.y - vertex.y,
-        z: p2.z - vertex.z
+        y: p2.y - vertex.y
     };
 
-    const dot = v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
-    const mag1 = Math.sqrt(v1.x * v1.x + v1.y * v1.y + v1.z * v1.z);
-    const mag2 = Math.sqrt(v2.x * v2.x + v2.y * v2.y + v2.z * v2.z);
+    const dot = v1.x * v2.x + v1.y * v2.y;
+    const mag1 = Math.sqrt(v1.x * v1.x + v1.y * v1.y);
+    const mag2 = Math.sqrt(v2.x * v2.x + v2.y * v2.y);
 
     const cosAngle = dot / (mag1 * mag2 + 1e-8);
     const angleRad = Math.acos(Math.max(-1, Math.min(1, cosAngle)));
@@ -920,40 +952,170 @@ function computeAngle(p1, vertex, p2) {
  */
 function compareAngles(playerAngles, refAngles) {
     const matches = {};
-    let totalDiff = 0;
+    const similarities = {};
+    const diffs = {};
     let count = 0;
     let matchedCount = 0;
 
-    for (const [angleName, playerAngle] of Object.entries(playerAngles)) {
-        if (playerAngle === null || refAngles[angleName] === null || refAngles[angleName] === undefined) {
-            matches[angleName] = null;
+    const similarityThreshold = GameConfig.ANGLE_MATCH_SIMILARITY ?? 0.9;
+    const similarityRange = GameConfig.ANGLE_SIMILARITY_RANGE ?? 180;
+    const allowedMisses = GameConfig.ANGLE_ALLOWED_MISSES ?? 2;
+
+    for (const [angleName, refAngle] of Object.entries(refAngles)) {
+        if (refAngle === null || refAngle === undefined) {
             continue;
         }
 
-        let angleDiff = Math.abs(playerAngle - refAngles[angleName]);
+        const playerAngle = playerAngles[angleName];
 
-        // Apply smoothing
+        if (playerAngle === null || playerAngle === undefined) {
+            matches[angleName] = false;
+            similarities[angleName] = 0;
+            diffs[angleName] = null;
+            count++;
+            continue;
+        }
+
+        let smoothedPlayerAngle = playerAngle;
         if (angleSmoothHistory[angleName] !== undefined) {
-            angleDiff = GameConfig.ANGLE_SMOOTHING * angleDiff +
+            smoothedPlayerAngle = GameConfig.ANGLE_SMOOTHING * playerAngle +
                 (1 - GameConfig.ANGLE_SMOOTHING) * angleSmoothHistory[angleName];
         }
-        angleSmoothHistory[angleName] = angleDiff;
+        angleSmoothHistory[angleName] = smoothedPlayerAngle;
 
-        totalDiff += angleDiff;
-        count++;
+        const angleDiff = Math.abs(smoothedPlayerAngle - refAngle);
+        const similarity = Math.max(0, 1 - (angleDiff / similarityRange));
+        const isMatch = similarity >= similarityThreshold;
 
-        const isMatch = angleDiff < GameConfig.ANGLE_THRESHOLD;
         matches[angleName] = isMatch;
+        similarities[angleName] = similarity;
+        diffs[angleName] = angleDiff;
+
         if (isMatch) matchedCount++;
+        count++;
     }
 
-    const avgDiff = totalDiff / count || 180;
-    const score = Math.max(0, 1.0 - avgDiff / 180.0);
-    const accuracy = matchedCount / count || 0;
+    if (count === 0) {
+        return {
+            score: 0,
+            accuracy: 0,
+            matches: {},
+            similarities: {},
+            diffs: {},
+            matchedCount: 0,
+            totalAngles: 0,
+            allowedMisses
+        };
+    }
 
-    return { score, accuracy, matches, avgDifference: avgDiff };
+    const effectiveTotal = Math.max(1, count - allowedMisses);
+    let accuracy = matchedCount / effectiveTotal;
+    accuracy = Math.max(0, Math.min(1, accuracy));
+
+    return {
+        score: accuracy,
+        accuracy,
+        matches,
+        similarities,
+        diffs,
+        matchedCount,
+        totalAngles: count,
+        allowedMisses
+    };
 }
 
+function getGameTimeSec() {
+    if (videoElement && Number.isFinite(videoElement.currentTime)) {
+        return videoElement.currentTime;
+    }
+    return performance.now() / 1000;
+}
+
+function ensureAngleDebugOverlay() {
+    if (angleDebugEl) return angleDebugEl;
+
+    const container = document.querySelector('.video-container') || document.body;
+    angleDebugEl = document.createElement('div');
+    angleDebugEl.id = 'angleDebugOverlay';
+    angleDebugEl.style.position = 'absolute';
+    angleDebugEl.style.top = '20px';
+    angleDebugEl.style.left = '20px';
+    angleDebugEl.style.zIndex = '15';
+    angleDebugEl.style.pointerEvents = 'none';
+    angleDebugEl.style.background = 'rgba(0, 0, 0, 0.6)';
+    angleDebugEl.style.padding = '12px 16px';
+    angleDebugEl.style.border = '2px solid #00d4ff';
+    angleDebugEl.style.borderRadius = '8px';
+    angleDebugEl.style.color = '#ffffff';
+    angleDebugEl.style.fontFamily = 'Orbitron, sans-serif';
+    angleDebugEl.style.textShadow = '0 0 12px rgba(0, 212, 255, 0.6)';
+    angleDebugEl.style.maxWidth = '70%';
+
+    container.appendChild(angleDebugEl);
+    return angleDebugEl;
+}
+
+function updateAngleDebugOverlay(angleResult) {
+
+    if (!debugEnabled) {
+        if (angleDebugEl) angleDebugEl.style.display = 'none';
+        return;
+    }
+
+    if (!angleResult) {
+        return;
+    }
+
+    const updateIntervalMs = GameConfig.ANGLE_DEBUG_UPDATE_INTERVAL_MS ?? 200;
+    const nowMs = performance.now();
+    if (nowMs - lastAngleDebugUpdateMs < updateIntervalMs) {
+        return;
+    }
+    lastAngleDebugUpdateMs = nowMs;
+
+    const overlay = ensureAngleDebugOverlay();
+    overlay.style.display = 'block';
+
+    const fontSizePx = GameConfig.ANGLE_DEBUG_FONT_SIZE_PX ?? 28;
+    overlay.style.fontSize = fontSizePx + 'px';
+
+    const matchNames = [];
+    const missNames = [];
+    const matches = angleResult && angleResult.matches ? angleResult.matches : {};
+
+    for (const [name, isMatch] of Object.entries(matches)) {
+        const similarity = angleResult.similarities && angleResult.similarities[name] !== undefined
+            ? Math.round(angleResult.similarities[name] * 100)
+            : null;
+        const label = similarity === null ? name : `${name} ${similarity}%`;
+
+        if (isMatch === true) {
+            matchNames.push(label);
+        } else {
+            missNames.push(label);
+        }
+    }
+
+    const accuracyPct = Math.round((angleResult.accuracy || 0) * 100);
+    const matchText = matchNames.length ? matchNames.join(', ') : '-';
+    const missText = missNames.length ? missNames.join(', ') : '-';
+
+    overlay.innerHTML = `
+        <div style="font-size: ${Math.round(fontSizePx * 1.1)}px; color: #00ff88; margin-bottom: 6px;">
+            Accuracy ${accuracyPct}%
+        </div>
+        <div style="color: #00ff88;">MATCH: ${matchText}</div>
+        <div style="color: #ff0080;">MISS: ${missText}</div>
+    `;
+}
+
+function updateComboIndicator() {
+    const indicator = document.getElementById('comboIndicator');
+    const comboVal = document.getElementById('comboValue');
+    if (!indicator || !comboVal) return;
+    comboVal.textContent = combo;
+    indicator.classList.toggle('active', combo > 0);
+}
 
 /**
  * Draw skeleton on video canvas
@@ -1050,32 +1212,55 @@ function drawCalibrationSkeleton(landmarks, color, isPlayer = false) {
 /**
  * Update score based on comparison
  */
-function updateScore(overallScore) {
-    totalFrames++;
+function updateScore(angleAccuracy, nowTimeSec) {
+    const accuracyThreshold = GameConfig.SCORE_ACCURACY_THRESHOLD ?? 0.7;
+    const pointsPerSecond = GameConfig.SCORE_POINTS_PER_SECOND ?? 100;
+    const comboSeconds = GameConfig.COMBO_SECONDS ?? 2;
+    const maxCombo = GameConfig.MAX_COMBO ?? 5;
 
-    if (overallScore > GameConfig.COMBO_THRESHOLD) {
-        matchedFrames++;
-        combo++;
-        score += GameConfig.BASE_POINTS * (1 + combo * GameConfig.COMBO_MULTIPLIER);
+    currentAccuracy = Number.isFinite(angleAccuracy) ? angleAccuracy : 0;
 
-        if (combo > 5) {
-            const indicator = document.getElementById('comboIndicator');
-            const comboVal = document.getElementById('comboValue');
-            comboVal.textContent = combo;
-            indicator.classList.add('active');
-        }
-
-        if (combo % 10 === 0 && combo > 0) {
-            showFeedback('PERFECT!', '#00ff88');
-        }
-    } else {
-        if (combo > 10) {
-            showFeedback('COMBO BREAK', '#ff0080');
-        }
-        combo = 0;
-        document.getElementById('comboIndicator').classList.remove('active');
+    if (!Number.isFinite(nowTimeSec)) {
+        updateUI();
+        return;
     }
 
+    if (lastScoreTimeSec === null || nowTimeSec < lastScoreTimeSec) {
+        lastScoreTimeSec = nowTimeSec;
+        updateUI();
+        return;
+    }
+
+    let delta = nowTimeSec - lastScoreTimeSec;
+    lastScoreTimeSec = nowTimeSec;
+
+    if (delta <= 0) {
+        updateUI();
+        return;
+    }
+
+    if (currentAccuracy >= accuracyThreshold) {
+        goodTimeAccumSec += delta;
+        goodStreakSec += delta;
+
+        while (goodTimeAccumSec >= 1) {
+            score += pointsPerSecond;
+            goodTimeAccumSec -= 1;
+        }
+
+        const newCombo = Math.min(maxCombo, Math.floor(goodStreakSec / comboSeconds));
+        if (newCombo !== combo) {
+            combo = newCombo;
+            updateComboIndicator();
+        } else if (combo > 0) {
+            updateComboIndicator();
+        }
+    } else {
+        goodTimeAccumSec = 0;
+        goodStreakSec = 0;
+        combo = 0;
+        updateComboIndicator();
+    }
 
     updateUI();
 }
@@ -1087,7 +1272,7 @@ function updateUI() {
     document.getElementById('score').textContent = Math.floor(score);
     document.getElementById('combo').textContent = combo;
 
-    const accuracy = totalFrames > 0 ? (matchedFrames / totalFrames) * 100 : 0;
+    const accuracy = Math.max(0, Math.min(1, currentAccuracy)) * 100;
     document.getElementById('accuracy').textContent = accuracy.toFixed(0) + '%';
 
     
@@ -1121,6 +1306,7 @@ function togglePlayPause() {
         videoElement.muted = false;
         videoElement.volume = 1.0;
         videoElement.play();
+        lastScoreTimeSec = getGameTimeSec();
 
         if (window.playerVideoElement) {
             window.playerVideoElement.play();
@@ -1129,6 +1315,7 @@ function togglePlayPause() {
         btn.textContent = 'Pause';
     } else {
         videoElement.pause();
+        lastScoreTimeSec = null;
 
         if (window.playerVideoElement) {
             window.playerVideoElement.pause();
@@ -1146,6 +1333,10 @@ function resetGame() {
     combo = 0;
     totalFrames = 0;
     matchedFrames = 0;
+    currentAccuracy = 0;
+    lastScoreTimeSec = null;
+    goodTimeAccumSec = 0;
+    goodStreakSec = 0;
     positionSmoothHistory = {};
     angleSmoothHistory = {};
 
@@ -1158,6 +1349,10 @@ function resetGame() {
     }
 
     document.getElementById('playPauseBtn').textContent = 'Play';
+    updateComboIndicator();
+    if (angleDebugEl) {
+        angleDebugEl.textContent = '';
+    }
     updateUI();
 }
 
@@ -1227,3 +1422,187 @@ function resizeCalibrationCanvas() {
 
     console.log('Calibration canvas resized:', renderWidth, 'x', renderHeight);
 }
+
+/**
+ * Quick pose comparison for finding best match 
+ */
+function comparePosesQuick(playerLandmarks, referencePose) {
+    // Early validation
+    if (!playerLandmarks || !referencePose || !referencePose.landmarks) {
+        return { overall_score: 0 };
+    }
+
+    const normalizedPlayer = normalizePose(playerLandmarks);
+    const refLandmarks = convertReferenceLandmarks(referencePose.landmarks);
+
+    // Quick position score
+    let posScore = 0;
+    let posCount = 0;
+    const activeLandmarks = GameConfig.ACTIVE_LANDMARKS;
+    const posThreshold = GameConfig.POSITION_THRESHOLD;
+    const posThresholdSq = posThreshold * posThreshold; 
+
+    for (let i = 0; i < activeLandmarks.length; i++) {
+        const idx = activeLandmarks[i];
+        const player = normalizedPlayer[idx];
+        const ref = refLandmarks[idx];
+
+        if (!player || !ref || player.visibility < 0.5 || ref.visibility < 0.5) continue;
+
+        const dx = player.x - ref.x;
+        const dy = player.y - ref.y;
+        const distSq = dx * dx + dy * dy; 
+
+        if (distSq < posThresholdSq) {
+            posScore += 1;
+        }
+        posCount++;
+    }
+
+    if (posCount === 0) return { overall_score: 0 };
+
+    const positionScore = posScore / posCount;
+
+    // If no angle weight, return
+    if (GameConfig.ANGLE_WEIGHT === 0) {
+        return { overall_score: positionScore };
+    }
+
+    // Quick angle score
+    let angleScore = 0;
+    let angleCount = 0;
+    const angleJointNames = Object.keys(GameConfig.ANGLE_JOINTS);
+    const angleThreshold = GameConfig.ANGLE_THRESHOLD;
+
+    const playerAngles = calculateAngles(normalizedPlayer);
+    const refAngles = referencePose.angles || {};
+
+    for (let i = 0; i < angleJointNames.length; i++) {
+        const angleName = angleJointNames[i];
+        const playerAngle = playerAngles[angleName];
+        const refAngle = refAngles[angleName];
+
+        if (playerAngle != null && refAngle != null) {
+            const diff = Math.abs(playerAngle - refAngle);
+            if (diff < angleThreshold) {
+                angleScore += 1;
+            }
+            angleCount++;
+        }
+    }
+
+    const angleScoreNorm = angleCount > 0 ? angleScore / angleCount : 0;
+
+    // Weighted overall score
+    const overall_score = (
+        GameConfig.POSITION_WEIGHT * positionScore +
+        GameConfig.ANGLE_WEIGHT * angleScoreNorm
+    ) / (GameConfig.POSITION_WEIGHT + GameConfig.ANGLE_WEIGHT);
+
+    return { overall_score };
+}
+
+function getCurrentReferencePose() {
+    if (!referenceData || !videoElement) return null;
+
+    // Early exit
+    if (!currentPlayerPose || !currentPlayerPose.length) {
+        const currentTime = videoElement.currentTime;
+        return getReferencePoseAtTime(currentTime);
+    }
+
+    const currentTime = videoElement.currentTime;
+
+    // Get poses within time window
+    const windowSize = GameConfig.POSE_TIME_WINDOW || 0.3;
+    const candidatePoses = getReferencePosesInWindow(currentTime, windowSize);
+
+    if (candidatePoses.length === 0) {
+        return getReferencePoseAtTime(currentTime);
+    }
+
+    if (candidatePoses.length === 1) {
+        return candidatePoses[0];
+    }
+
+    // Find best matching pose in window
+    let bestPose = null;
+    let bestScore = -1;
+    const earlyExitThreshold = 0.95; 
+
+    for (const refPose of candidatePoses) {
+        // Skip if no landmarks on reference pose
+        if (!refPose.landmarks || refPose.landmarks.length === 0) continue;
+
+        const comparison = comparePosesQuick(currentPlayerPose, refPose);
+
+        if (comparison.overall_score > bestScore) {
+            bestScore = comparison.overall_score;
+            bestPose = refPose;
+
+            // Early exit
+            if (bestScore >= earlyExitThreshold) {
+                break;
+            }
+        }
+    }
+
+    return bestPose || candidatePoses[0];
+}
+
+
+/**
+ * Get reference poses within time window using binary search 
+ */
+let lastSearchIndex = 0; // Cache 
+
+function getReferencePosesInWindow(time, windowSize) {
+    if (!referenceData) return [];
+
+    const poses = referenceData.poses;
+    if (!poses || poses.length === 0) return [];
+
+    const windowStart = time - windowSize;
+    const windowEnd = time + windowSize;
+
+    // Binary search to find first pose in the window
+    let left = 0;
+    let right = poses.length - 1;
+    let startIdx = poses.length;
+
+    // Optimization: start from last position if close in time
+    if (lastSearchIndex > 0 && lastSearchIndex < poses.length) {
+        const lastTime = poses[lastSearchIndex].timestamp;
+        if (Math.abs(lastTime - time) < windowSize * 2) {
+            left = Math.max(0, lastSearchIndex - 10);
+            right = Math.min(poses.length - 1, lastSearchIndex + 10);
+        }
+    }
+
+    // Find first pose >= windowStart
+    while (left <= right) {
+        const mid = Math.floor((left + right) / 2);
+        if (poses[mid].timestamp >= windowStart) {
+            startIdx = mid;
+            right = mid - 1;
+        } else {
+            left = mid + 1;
+        }
+    }
+
+    // Collect poses in window
+    const posesInWindow = [];
+    for (let i = startIdx; i < poses.length; i++) {
+        const pose = poses[i];
+        if (pose.timestamp > windowEnd) break;
+        posesInWindow.push(pose);
+    }
+
+    // Update cache
+    if (posesInWindow.length > 0) {
+        lastSearchIndex = startIdx;
+    }
+
+    return posesInWindow;
+}
+
