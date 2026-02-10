@@ -21,14 +21,14 @@
   ],
   "ANGLE_JOINTS": {
     "left_shoulder": [
-      13,
+      12,
       11,
-      23
+      13
     ],
     "right_shoulder": [
-      14,
+      11,
       12,
-      24
+      14
     ],
     "left_elbow": [
       11,
@@ -49,6 +49,16 @@
       24,
       26,
       28
+    ],
+    "left_hip": [
+      24,
+      23,
+      25
+    ],
+    "right_hip": [
+      23,
+      24,
+      26
     ]
   },
   "ANGLE_SMOOTHING": 0.4,

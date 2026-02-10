@@ -365,7 +365,9 @@ class DanceVisualizer {
             'left_elbow': 13,
             'right_elbow': 14,
             'left_knee': 25,
-            'right_knee': 26
+            'right_knee': 26,
+            'left_hip': 23,
+            'right_hip': 24
         };
         
         for (const [angleName, jointId] of Object.entries(anglePositions)) {

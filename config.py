@@ -54,13 +54,17 @@ class Config:
     # ===== ANGLE CALCULATION =====
     # Define joint angles to track
     # Format: (point1, vertex, point2) where vertex is the joint
+
     ANGLE_JOINTS = {
-        'left_shoulder': (13, 11, 23),   # Elbow-Shoulder-Hip
-        'right_shoulder': (14, 12, 24),
+        'left_shoulder': (12, 11, 13),   # right shoulder - left shoulder - left elbow
+        'right_shoulder': (11, 12, 14),  # left shoulder - right shoulder - right elbow
         'left_elbow': (11, 13, 15),      # Shoulder-Elbow-Wrist
         'right_elbow': (12, 14, 16),
         'left_knee': (23, 25, 27),       # Hip-Knee-Ankle
         'right_knee': (24, 26, 28),
+        'left_hip': (24, 23, 25),
+        'right_hip': (23, 24, 26),
+        
     }
 
 

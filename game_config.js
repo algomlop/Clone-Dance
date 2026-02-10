@@ -7,12 +7,14 @@ const GameConfig = {
     // Angle joints for tracking
     // Format: [point1, vertex, point2]
     ANGLE_JOINTS: {
-        'left_shoulder': [13, 11, 23],
-        'right_shoulder': [14, 12, 24],
+        'left_shoulder': [12, 11, 13],
+        'right_shoulder': [11, 12, 14],
         'left_elbow': [11, 13, 15],
         'right_elbow': [12, 14, 16],
         'left_knee': [23, 25, 27],
-        'right_knee': [24, 26, 28]
+        'right_knee': [24, 26, 28],
+        'left_hip': [24, 23, 25],
+        'right_hip': [23, 24, 26]
     },
 
 

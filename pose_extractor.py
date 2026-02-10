@@ -128,8 +128,6 @@ class PoseExtractor:
         processed_count = 0
         failed_count = 0
         
-        # Reset history
-        self.position_history.clear()
         
         while cap.isOpened():
             ret, frame = cap.read()
@@ -260,12 +258,11 @@ class PoseExtractor:
         return angles
     
     def _compute_angle(self, p1: Tuple[float, float, float], 
-                       vertex: Tuple[float, float, float],
-                       p2: Tuple[float, float, float]) -> float:
-        """Compute angle at vertex between p1-vertex-p2"""
-        # Vectors
-        v1 = np.array([p1[0] - vertex[0], p1[1] - vertex[1], p1[2] - vertex[2]])
-        v2 = np.array([p2[0] - vertex[0], p2[1] - vertex[1], p2[2] - vertex[2]])
+                    vertex: Tuple[float, float, float],
+                    p2: Tuple[float, float, float]) -> float:
+        """Compute angle at vertex between p1-vertex-p2 (2D for camera view). Ignoring depth (z) for angle calculation."""
+        v1 = np.array([p1[0] - vertex[0], p1[1] - vertex[1]])
+        v2 = np.array([p2[0] - vertex[0], p2[1] - vertex[1]])
         
         # Angle using dot product
         cos_angle = np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2) + 1e-8)
