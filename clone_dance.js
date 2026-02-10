@@ -24,6 +24,7 @@ let currentPlayerPose = null;
 
 // Settings
 let isMirrorEnabled = false;
+let effectsEnabled = false;
 let calibrationTime = 0;
 
 // Normalization factors (from calibration)
@@ -68,11 +69,19 @@ document.getElementById('skipCalibrationBtn').addEventListener('click', skipCali
 // Mirror toggle
 document.getElementById('mirrorToggle').addEventListener('click', () => {
     const toggle = document.getElementById('mirrorToggle');
-    const status = document.getElementById('mirrorStatus');
     isMirrorEnabled = !isMirrorEnabled;
     toggle.classList.toggle('active', isMirrorEnabled);
-    status.textContent = isMirrorEnabled ? 'ON' : 'OFF';
     console.log('Mirror enabled:', isMirrorEnabled);
+});
+
+// Effects toggle
+document.getElementById('enable-effectsToggle').addEventListener('click', () => {
+    const toggle = document.getElementById('enable-effectsToggle');
+    effectsEnabled = !effectsEnabled;
+    toggle.classList.toggle('active', effectsEnabled);
+
+
+    console.log('Effects enabled:', effectsEnabled);
 });
 
 // Frame slider
@@ -119,9 +128,10 @@ function resizeCanvas() {
     const mainPanel = document.querySelector('.main-panel');
     const mainPanelBorder = 4; // 2px border top + 2px border bottom
 
-    // 2. Altura disponible REAL para el video-container
-    const availableHeight = window.innerHeight - headerHeight - gameContainerPadding - mainPanelBorder;
-    const availableWidth = window.innerWidth - 80; // padding lateral
+ 
+
+    const availableHeight = window.innerHeight;
+    const availableWidth = window.innerWidth; // padding lateral
     const effectiveWidth = Math.min(availableWidth, 1200);
 
     // 3. Calcular tamaño del video respetando aspect ratio
@@ -424,7 +434,7 @@ function startCalibration() {
     calibrationTime = 0;
 
     document.getElementById('calibrationScreen').classList.add('active');
-    document.getElementById('calibrationStatus').textContent = 'Detecting pose...';
+    document.getElementById('calibrationStatus').textContent = 'Loading pose... Don\'t skip yet';
     document.getElementById('calibrationProgress').style.width = '0%';
 }
 
@@ -739,17 +749,28 @@ function comparePoses(playerLandmarks, referencePose) {
     const refLandmarks = convertReferenceLandmarks(referencePose.landmarks);
 
     // Compare positions
-    const positionResult = comparePositions(normalizedPlayer, refLandmarks);
+
+    let positionResult =comparePositions(normalizedPlayer, refLandmarks);
 
     // Calculate and compare angles
-    const playerAngles = calculateAngles(normalizedPlayer);
-    const refAngles = referencePose.angles || {};
-    const angleResult = compareAngles(playerAngles, refAngles);
+    let angleResult;
+    if (GameConfig.ANGLE_WEIGHT > 0.0) {
+        const playerAngles = calculateAngles(normalizedPlayer);
+        const refAngles = referencePose.angles || {};
+        angleResult = compareAngles(playerAngles, refAngles);
+    } else {
+        angleResult = { score: 0, accuracy: 0, matches: {} };
+    }
 
     // Calculate and compare acceleration
-    const playerAccel = calculateAcceleration(normalizedPlayer);
-    const refAccel = referencePose.acceleration || {};
-    const accelResult = compareAcceleration(playerAccel, refAccel);
+    let accelResult;
+    if (GameConfig.ACCELERATION_WEIGHT > 0.0) {
+        const playerAccel = calculateAcceleration(normalizedPlayer);
+        const refAccel = referencePose.acceleration || {};
+        accelResult = compareAcceleration(playerAccel, refAccel);
+    } else {
+        accelResult = { score: 0, accuracy: 0, matches: {} };
+    }
 
     // Weighted overall score
     const overall_score = (
@@ -1132,6 +1153,7 @@ function updateScore(overallScore) {
         document.getElementById('comboIndicator').classList.remove('active');
     }
 
+
     updateUI();
 }
 
@@ -1144,6 +1166,8 @@ function updateUI() {
 
     const accuracy = totalFrames > 0 ? (matchedFrames / totalFrames) * 100 : 0;
     document.getElementById('accuracy').textContent = accuracy.toFixed(0) + '%';
+
+    
 }
 
 /**
