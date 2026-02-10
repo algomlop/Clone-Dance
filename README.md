@@ -41,5 +41,12 @@ python process_video.py --video FILE.mp4 --name "NAME"
 - [ ] Make an enjoyable game
 - [ ] Add visual effects
 - [ ] Fine-tune the detection and scoring strategy (position vs angle). Skip calibration if only angles.
+- [ ] Add dificulty levels
+- [ ] Add speed control
+- [ ] Test in more devices (smartphones and other browsers)
+- [ ] Preview next pose
+- [ ] Local multiplayer (now is limited to one person in the reference and the live video)
 - [ ] Finish this TODO list
+
+Made with love and AI
 
