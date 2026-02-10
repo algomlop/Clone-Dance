@@ -37,6 +37,7 @@ class PoseExtractor:
             model_path: Path to .task model file
             model_complexity: 'lite', 'full', or 'heavy'
         """
+        Config.ensure_loaded()
         self.model_complexity = model_complexity or Config.MODEL_COMPLEXITY
         
         if model_path is None:

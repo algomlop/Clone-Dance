@@ -1,114 +1,103 @@
 {
-
-  "ACTIVE_LANDMARKS": [
-    0,
-    11,
-    12,
-    13,
-    14,
-    15,
-    16,
-    23,
-    24,
-    25,
-    26,
-    27,
-    28,
-    29,
-    30,
-    31,
-    32
-  ],
-  "ANGLE_JOINTS": {
-    "left_shoulder": [
-      12,
-      11,
-      13
-    ],
-    "right_shoulder": [
-      11,
-      12,
-      14
-    ],
-    "left_elbow": [
-      11,
-      13,
-      15
-    ],
-    "right_elbow": [
-      12,
-      14,
-      16
-    ],
-    "left_knee": [
-      23,
-      25,
-      27
-    ],
-    "right_knee": [
-      24,
-      26,
-      28
-    ],
-    "left_hip": [
-      24,
-      23,
-      25
-    ],
-    "right_hip": [
-      23,
-      24,
-      26
+  "common": {
+    "MODEL_COMPLEXITY": "heavy",
+    "MODEL_PATH": null,
+    "MIN_DETECTION_CONFIDENCE": 0.8,
+    "MIN_TRACKING_CONFIDENCE": 0.8,
+    "MIN_PRESENCE_CONFIDENCE": 0.8,
+    "SKIP_FRAMES": 0,
+    "TARGET_FPS": null,
+    "POSE_TIME_TOLERANCE_SEC": 0.5,
+    "HEAD_LANDMARKS": [0],
+    "ARM_LANDMARKS": [11, 12, 13, 14, 15, 16],
+    "LEG_LANDMARKS": [23, 24, 25, 26, 27, 28, 29, 30, 31, 32],
+    "ACTIVE_LANDMARKS": [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32],
+    "ANGLE_JOINTS": {
+      "left_shoulder": [12, 11, 13],
+      "right_shoulder": [11, 12, 14],
+      "left_elbow": [11, 13, 15],
+      "right_elbow": [12, 14, 16],
+      "left_knee": [23, 25, 27],
+      "right_knee": [24, 26, 28],
+      "left_hip": [24, 23, 25],
+      "right_hip": [23, 24, 26]
+    },
+    "MIRROR_REFERENCE": false,
+    "OUTPUT_DIR": "choreographies",
+    "NORMALIZE_BY_TORSO": true,
+    "MIN_TORSO_SIZE": 0.01,
+    "KEYPOINTS_MIRROR_SWAP": [
+      [11, 12],
+      [13, 14],
+      [15, 16],
+      [23, 24],
+      [25, 26],
+      [27, 28],
+      [29, 30],
+      [31, 32]
     ]
   },
-  "ANGLE_SMOOTHING": 0.4,
-  "ANGLE_THRESHOLD": 20.0,
-  "ANGLE_WEIGHT": 0.3,
-  "ARM_LANDMARKS": [
-    11,
-    12,
-    13,
-    14,
-    15,
-    16
-  ],
-  "BASE_POINTS": 10,
-  "CALIBRATION_DURATION": 3.0,
-  "COMBO_MULTIPLIER": 0.1,
-  "COMBO_THRESHOLD": 0.6,
-  "HEAD_LANDMARKS": [
-    0
-  ],
-  "LEG_LANDMARKS": [
-    23,
-    24,
-    25,
-    26,
-    27,
-    28,
-    29,
-    30,
-    31,
-    32
-  ],
-  "LINE_THICKNESS": 3,
-  "MIN_CALIBRATION_QUALITY": 0.7,
-  "MIN_DETECTION_CONFIDENCE": 0.8,
-  "MIN_PRESENCE_CONFIDENCE": 0.8,
-  "MIN_TORSO_SIZE": 0.01,
-  "MIN_TRACKING_CONFIDENCE": 0.8,
-  "MIRROR_REFERENCE": false,
-  "MODEL_COMPLEXITY": "heavy",
-  "MODEL_PATH": null,
-  "NORMALIZE_BY_TORSO": true,
-  "OUTPUT_DIR": "choreographies",
-  "POSITION_SMOOTHING": 0.3,
-  "POSITION_THRESHOLD": 0.15,
-  "POSITION_WEIGHT": 0.5,
-  "SHOW_LABELS": true,
-  "SKELETON_COLOR": "#00ff88",
-  "SKELETON_OPACITY": 1.0,
-  "SKIP_FRAMES": 0,
-  "SMOOTHING_ALPHA": 0.3,
-  "TARGET_FPS": null
+  "game": {
+    "POSITION_SMOOTHING": 0.3,
+    "ANGLE_SMOOTHING": 0.4,
+    "POSITION_WEIGHT": 0.8,
+    "ANGLE_WEIGHT": 0.2,
+    "POSITION_THRESHOLD": 0.15,
+    "ANGLE_THRESHOLD": 20.0,
+    "COMBO_THRESHOLD": 0.6,
+    "COMBO_MULTIPLIER": 0.1,
+    "BASE_POINTS": 10,
+    "MIN_CALIBRATION_QUALITY": 0.7,
+    "CALIBRATION_FRAMES": 90,
+    "SKELETON_COLOR": "#00ff88",
+    "LINE_THICKNESS": 3,
+    "SCORING_JOINTS": [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28],
+    "POSE_CONNECTIONS": [
+      [11, 12],
+      [11, 13],
+      [13, 15],
+      [12, 14],
+      [14, 16],
+      [11, 23],
+      [12, 24],
+      [23, 24],
+      [23, 25],
+      [25, 27],
+      [24, 26],
+      [26, 28],
+      [27, 29],
+      [27, 31],
+      [28, 30],
+      [28, 32]
+    ],
+    "MEDIAPIPE_MODEL_COMPLEXITY": 1,
+    "MEDIAPIPE_SMOOTH_LANDMARKS": true,
+    "MEDIAPIPE_MIN_DETECTION_CONFIDENCE": 0.5,
+    "MEDIAPIPE_MIN_TRACKING_CONFIDENCE": 0.7,
+    "MIRROR_INPUT_DEFAULT": false,
+    "EFFECTS_ENABLED_DEFAULT": false
+  },
+  "visualizer": {
+    "SKELETON_COLOR": "#00ff00",
+    "LINE_THICKNESS": 3,
+    "SKELETON_OPACITY": 1.0,
+    "SHOW_CONNECTIONS": true,
+    "SHOW_ANGLES": true,
+    "KEYPOINTS": [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28],
+    "POSE_CONNECTIONS": [
+      [11, 12],
+      [11, 13],
+      [13, 15],
+      [12, 14],
+      [14, 16],
+      [11, 23],
+      [12, 24],
+      [23, 24],
+      [23, 25],
+      [25, 27],
+      [24, 26],
+      [26, 28]
+    ],
+    "MIRROR_DEFAULT": false
+  }
 }

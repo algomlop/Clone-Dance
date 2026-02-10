@@ -23,8 +23,8 @@ let isCalibrated = false;
 let currentPlayerPose = null;
 
 // Settings
-let isMirrorEnabled = false;
-let effectsEnabled = false;
+let isMirrorEnabled = null;
+let effectsEnabled = null;
 let calibrationTime = 0;
 
 // Normalization factors (from calibration)
@@ -41,17 +41,51 @@ let calibrationFrames = 0;
 let positionSmoothHistory = {};
 let angleSmoothHistory = {};
 
+let GameConfig = null;
+let gameConfigPromise = null;
 
-this.KEYPOINTS_MIRROR_SWAP = [
-    [11, 12],
-    [13, 14],
-    [15, 16],
-    [23, 24],
-    [25, 26],
-    [27, 28],
-    [29, 30],
-    [31, 32]
-];
+function getGameConfig() {
+    if (GameConfig) {
+        return Promise.resolve(GameConfig);
+    }
+    if (gameConfigPromise) {
+        return gameConfigPromise;
+    }
+    if (!window.loadAppConfig) {
+        return Promise.reject(new Error('loadAppConfig not found. Ensure config_loader.js is loaded first.'));
+    }
+
+    gameConfigPromise = window.loadAppConfig()
+        .then((config) => {
+            GameConfig = { ...config.common, ...config.game };
+            return GameConfig;
+        });
+
+    return gameConfigPromise;
+}
+
+getGameConfig()
+    .then((config) => {
+        if (isMirrorEnabled === null) {
+            isMirrorEnabled = config.MIRROR_INPUT_DEFAULT;
+        }
+        if (effectsEnabled === null) {
+            effectsEnabled = config.EFFECTS_ENABLED_DEFAULT;
+        }
+
+        const mirrorToggle = document.getElementById('mirrorToggle');
+        if (mirrorToggle) {
+            mirrorToggle.classList.toggle('active', !!isMirrorEnabled);
+        }
+
+        const effectsToggle = document.getElementById('enable-effectsToggle');
+        if (effectsToggle) {
+            effectsToggle.classList.toggle('active', !!effectsEnabled);
+        }
+    })
+    .catch((error) => {
+        console.error('Failed to initialize game config:', error);
+    });
 
 
 
@@ -207,6 +241,7 @@ async function initGame() {
     document.getElementById('startBtn').disabled = true;
 
     try {
+        await getGameConfig();
         console.log("Loading JSON...");
         const jsonText = await jsonFile.text();
         referenceData = JSON.parse(jsonText);
@@ -227,10 +262,10 @@ async function initGame() {
         });
 
         pose.setOptions({
-            modelComplexity: 1,
-            smoothLandmarks: true,
-            minDetectionConfidence: 0.5,
-            minTrackingConfidence: 0.7
+            modelComplexity: GameConfig.MEDIAPIPE_MODEL_COMPLEXITY,
+            smoothLandmarks: GameConfig.MEDIAPIPE_SMOOTH_LANDMARKS,
+            minDetectionConfidence: GameConfig.MEDIAPIPE_MIN_DETECTION_CONFIDENCE,
+            minTrackingConfidence: GameConfig.MEDIAPIPE_MIN_TRACKING_CONFIDENCE
         });
 
         pose.onResults(onPoseResults);
@@ -355,7 +390,7 @@ function applyMirror(landmarks) {
 
     // Step 2: Swap left-right landmarks
     const swapped = [...mirrored];
-    for (const [leftIdx, rightIdx] of this.KEYPOINTS_MIRROR_SWAP) {
+    for (const [leftIdx, rightIdx] of GameConfig.KEYPOINTS_MIRROR_SWAP) {
         const temp = swapped[leftIdx];
         swapped[leftIdx] = swapped[rightIdx];
         swapped[rightIdx] = temp;
@@ -630,7 +665,7 @@ function getReferencePoseAtTime(time) {
         }
     }
 
-    if (minDiff > 0.5) return null;
+    if (minDiff > GameConfig.POSE_TIME_TOLERANCE_SEC) return null;
     return closest;
 }
 
@@ -638,6 +673,14 @@ function getReferencePoseAtTime(time) {
  * Calculate normalization factors from calibration
  */
 function calculateNormalization(playerLandmarks, referenceLandmarks) {
+    if (!GameConfig.NORMALIZE_BY_TORSO) {
+        scaleFactorX = 1;
+        scaleFactorY = 1;
+        offsetX = 0;
+        offsetY = 0;
+        return;
+    }
+
     const playerTorso = getTorsoSize(playerLandmarks);
     const refTorso = getTorsoSize(convertReferenceLandmarks(referenceLandmarks));
 
@@ -671,8 +714,11 @@ function getTorsoSize(landmarks) {
     const leftHip = landmarks[23];
     const rightHip = landmarks[24];
 
-    const width = Math.abs(rightShoulder.x - leftShoulder.x);
-    const height = Math.abs((leftHip.y + rightHip.y) / 2 - (leftShoulder.y + rightShoulder.y) / 2);
+    const width = Math.max(Math.abs(rightShoulder.x - leftShoulder.x), GameConfig.MIN_TORSO_SIZE);
+    const height = Math.max(
+        Math.abs((leftHip.y + rightHip.y) / 2 - (leftShoulder.y + rightShoulder.y) / 2),
+        GameConfig.MIN_TORSO_SIZE
+    );
 
     return { width, height };
 }

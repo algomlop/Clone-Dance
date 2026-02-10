@@ -172,11 +172,11 @@ def main():
     parser.add_argument('--video', required=True, help='Video file (MP4)')
     parser.add_argument('--name', required=True, help='Choreography name')
     parser.add_argument('--url', default='', help='Source URL')
-    parser.add_argument('--output-dir', default=None, help=f'Output directory (default: {Config.OUTPUT_DIR})')
+    parser.add_argument('--output-dir', default=None, help='Output directory (default: config.json)')
     parser.add_argument('--model-complexity', choices=['lite', 'full', 'heavy'], 
-                       default=None, help=f'Model complexity (default: {Config.MODEL_COMPLEXITY})')
+                       default=None, help='Model complexity (default: config.json)')
     parser.add_argument('--skip-frames', type=int, default=None,
-                       help=f'Skip N frames (default: {Config.SKIP_FRAMES})')
+                       help='Skip N frames (default: config.json)')
     parser.add_argument('--config', default='config.json', help='Config file path')
     
     args = parser.parse_args()

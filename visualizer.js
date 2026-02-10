@@ -4,7 +4,11 @@
  */
 
 class DanceVisualizer {
-    constructor() {
+    constructor(appConfig) {
+        this.appConfig = appConfig;
+        const visualizerConfig = appConfig.visualizer;
+        const commonConfig = appConfig.common;
+
         this.videoInput = document.getElementById('videoInput');
         this.jsonInput = document.getElementById('jsonInput');
         this.loadBtn = document.getElementById('loadBtn');
@@ -38,42 +42,49 @@ class DanceVisualizer {
         
         // Configuration
         this.config = {
-            color: '#00ff00',
-            thickness: 3,
-            opacity: 1.0,
-            showConnections: true,
-            showAngles: true
+            color: visualizerConfig.SKELETON_COLOR,
+            thickness: visualizerConfig.LINE_THICKNESS,
+            opacity: visualizerConfig.SKELETON_OPACITY,
+            showConnections: visualizerConfig.SHOW_CONNECTIONS,
+            showAngles: visualizerConfig.SHOW_ANGLES
         };
         
         // Pose connections
-        this.POSE_CONNECTIONS = [
-            [11, 12],  // Shoulders
-            [11, 13], [13, 15],  // Left arm
-            [12, 14], [14, 16],  // Right arm
-            [11, 23], [12, 24],  // Torso
-            [23, 24],  // Hips
-            [23, 25], [25, 27],  // Left leg
-            [24, 26], [26, 28]
-        ];
+        this.POSE_CONNECTIONS = visualizerConfig.POSE_CONNECTIONS;
+        this.KEYPOINTS = visualizerConfig.KEYPOINTS;
+        this.KEYPOINTS_MIRROR_SWAP = commonConfig.KEYPOINTS_MIRROR_SWAP;
 
-        this.KEYPOINTS = [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
-
-        this.KEYPOINTS_MIRROR_SWAP = [
-            [11, 12],
-            [13, 14],
-            [15, 16],
-            [23, 24],
-            [25, 26],
-            [27, 28],
-            [29, 30],
-            [31, 32]
-            ];
-
-
-
-
-        
+        this.applyInitialConfig();
         this.setupEventListeners();
+    }
+
+    applyInitialConfig() {
+        if (this.skeletonColor) {
+            this.skeletonColor.value = this.config.color;
+        }
+
+        if (this.lineThickness) {
+            this.lineThickness.value = this.config.thickness;
+            document.getElementById('thicknessValue').textContent = this.config.thickness;
+        }
+
+        if (this.skeletonOpacity) {
+            const opacityPercent = Math.round(this.config.opacity * 100);
+            this.skeletonOpacity.value = opacityPercent;
+            document.getElementById('opacityValue').textContent = opacityPercent;
+        }
+
+        if (this.showConnections) {
+            this.showConnections.checked = this.config.showConnections;
+        }
+
+        if (this.showAngles) {
+            this.showAngles.checked = this.config.showAngles;
+        }
+
+        if (this.mirror && Object.prototype.hasOwnProperty.call(this.appConfig.visualizer, 'MIRROR_DEFAULT')) {
+            this.mirror.checked = this.appConfig.visualizer.MIRROR_DEFAULT;
+        }
     }
     
     setupEventListeners() {
@@ -272,7 +283,7 @@ class DanceVisualizer {
             }
         }
         
-        return minDiff < 0.5 ? closest : null;
+        return minDiff < this.appConfig.common.POSE_TIME_TOLERANCE_SEC ? closest : null;
     }
     
     drawSkeleton(pose) {
@@ -430,6 +441,20 @@ class DanceVisualizer {
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-    const visualizer = new DanceVisualizer();
-    console.log('Dance Visualizer initialized');
+    if (!window.loadAppConfig) {
+        console.error('loadAppConfig not found. Ensure config_loader.js is loaded first.');
+        alert('Config loader missing. Please load config_loader.js before visualizer.js.');
+        return;
+    }
+
+    window.loadAppConfig()
+        .then((config) => {
+            const visualizer = new DanceVisualizer(config);
+            console.log('Dance Visualizer initialized');
+            return visualizer;
+        })
+        .catch((error) => {
+            console.error('Failed to load config:', error);
+            alert('Failed to load config.json. Please serve this folder with a local web server.');
+        });
 });
