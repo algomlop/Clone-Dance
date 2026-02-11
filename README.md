@@ -58,9 +58,10 @@ OR
 - [ ] Test in more devices (smartphones and other browsers)
 - [ ] Preview next pose
 - [ ] Local multiplayer (now is limited to one person in the reference and the live video)
-- [ ] From JD 2, the videos have camera movements and zooms. I don't know if these videos could be used.
+- [ ] in the last versions of Just Dance, reference videos have camera movements and zooms. I don't know if these could be used.
 - [ ] Choreography (JSON) editor
 - [ ] Finish this TODO list
+
 
 
 Made with love and AI
