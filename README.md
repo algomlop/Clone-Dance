@@ -1,6 +1,8 @@
 # Clone Dance
 ### The cross-platform and open-source dance game
 
+Create reference choreographies using videos and play along with your webcam or smartphone camera. This game uses MediaPipe to compare choreographies, giving you a score.
+
 **Status: Pre-alpha version**
 
 
