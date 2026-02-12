@@ -51,7 +51,8 @@ OR
 ## TODO
 
 - [ ] Make an enjoyable game
-- [ ] Add visual effects
+- [ ] Improve visual effects
+- [ ] Add sound effects
 - [ ] Fine-tune the detection and scoring strategy (position vs angle). I think it's better only angles. Skip calibration if only angles.
 - [ ] Add difficulty levels
 - [ ] Add speed control
