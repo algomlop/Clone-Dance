@@ -1,6 +1,8 @@
 # Clone Dance
 ### The cross-platform and open-source dance game
 
+Create reference choreographies using videos and play along with your webcam or smartphone camera. This game uses MediaPipe to compare choreographies, giving you a score.
+
 **Status: Pre-alpha version**
 
 
@@ -14,6 +16,11 @@ python process_video.py --video FILE.mp4 --name "NAME"
 
 ### Visualize the choreography (check it's OK)
 
+Open in Chrome Desktop (only tested here):
+https://algomlop.github.io/Clone-Dance/visualizer.html
+
+OR
+
 1. Start the HTTP server:
 ```bash
    python -m http.server
@@ -25,6 +32,11 @@ python process_video.py --video FILE.mp4 --name "NAME"
 ```
 
 ### Play the game (not enjoyable yet)
+
+Open in Chrome Desktop (only tested here):
+https://algomlop.github.io/Clone-Dance/clone_dance.html
+
+OR
 
 1. Start the HTTP server:
 ```bash
@@ -46,9 +58,10 @@ python process_video.py --video FILE.mp4 --name "NAME"
 - [ ] Test in more devices (smartphones and other browsers)
 - [ ] Preview next pose
 - [ ] Local multiplayer (now is limited to one person in the reference and the live video)
-- [ ] From JD 2, the videos have camera movements and zooms. I don't know if these videos could be used.
+- [ ] in the last versions of Just Dance, reference videos have camera movements and zooms. I don't know if these could be used.
 - [ ] Choreography (JSON) editor
 - [ ] Finish this TODO list
+
 
 
 Made with love and AI
