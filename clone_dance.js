@@ -28,6 +28,17 @@ let isPlaying = false;
 let isCalibrated = false;
 let currentPlayerPose = null;
 
+let gameEffectsLayerEl = null;
+const effectsState = window.cloneDanceEffectsState || {
+    enabled: false,
+    active: false,
+    strength: 0,
+    x: 0.5,
+    y: 0.5,
+    hasInput: false
+};
+window.cloneDanceEffectsState = effectsState;
+
 // Settings
 let isMirrorEnabled = null;
 let effectsEnabled = null;
@@ -94,6 +105,8 @@ getGameConfig()
         if (debugToggle) {
             debugToggle.classList.toggle('active', !!debugEnabled);
         }
+
+        syncEffectsState();
     })
     .catch((error) => {
         console.error('Failed to initialize game config:', error);
@@ -124,6 +137,7 @@ document.getElementById('enable-effectsToggle').addEventListener('click', () => 
     effectsEnabled = !effectsEnabled;
     toggle.classList.toggle('active', effectsEnabled);
     console.log('Effects enabled:', effectsEnabled);
+    syncEffectsState();
 });
 
 document.getElementById('debugToggle').addEventListener('click', () => {
@@ -158,7 +172,182 @@ document.getElementById('inputMode').addEventListener('change', (e) => {
     }
 });
 
-function resizeCanvas() {
+function getGameEffectsLayer() {
+    if (!gameEffectsLayerEl) {
+        gameEffectsLayerEl = document.getElementById('effectsLayer');
+    }
+    return gameEffectsLayerEl;
+}
+
+function setEffectsLayerActive(isActive) {
+    const layer = getGameEffectsLayer();
+    if (!layer) return;
+    layer.classList.toggle('active', isActive);
+}
+
+function clamp01(value) {
+    return Math.max(0, Math.min(1, value));
+}
+
+function updateEffectsInputFromPose(landmarks) {
+    if (!effectsState) return;
+    if (!landmarks || !landmarks.length) {
+        effectsState.hasInput = false;
+        return;
+    }
+
+    const pickVisible = (indices) => indices
+        .map((idx) => landmarks[idx])
+        .filter((lm) => lm && lm.visibility > 0.5);
+
+    let points = pickVisible([15, 16]); // wrists
+    if (points.length === 0) points = pickVisible([13, 14]); // elbows
+    if (points.length === 0) points = pickVisible([11, 12]); // shoulders
+    if (points.length === 0) points = pickVisible([23, 24]); // hips
+    if (points.length === 0) points = pickVisible([0]); // nose
+
+    if (points.length === 0) {
+        effectsState.hasInput = false;
+        return;
+    }
+
+    const sum = points.reduce((acc, lm) => {
+        acc.x += lm.x;
+        acc.y += lm.y;
+        return acc;
+    }, { x: 0, y: 0 });
+
+    const x = clamp01(sum.x / points.length);
+    const y = clamp01(sum.y / points.length);
+    const smooth = 0.35;
+
+    if (effectsState.hasInput) {
+        effectsState.x = effectsState.x * (1 - smooth) + x * smooth;
+        effectsState.y = effectsState.y * (1 - smooth) + y * smooth;
+    } else {
+        effectsState.x = x;
+        effectsState.y = y;
+    }
+
+    effectsState.hasInput = true;
+}
+
+function updateEffectsInputFromAngleResult(angleResult, landmarks) {
+    if (!effectsState || !angleResult || !landmarks || !landmarks.length) return false;
+    if (!GameConfig || !GameConfig.ANGLE_JOINTS) return false;
+
+    const similarities = angleResult.similarities || {};
+    const matches = angleResult.matches || {};
+    let bestMatched = null;
+    let bestMatchedScore = -1;
+    let bestAny = null;
+    let bestAnyScore = -1;
+
+    for (const [name, score] of Object.entries(similarities)) {
+        if (!Number.isFinite(score)) continue;
+        if (matches[name] === true && score > bestMatchedScore) {
+            bestMatchedScore = score;
+            bestMatched = name;
+        }
+        if (score > bestAnyScore) {
+            bestAnyScore = score;
+            bestAny = name;
+        }
+    }
+
+    const bestAngle = bestMatched || bestAny;
+    const bestScore = bestMatched ? bestMatchedScore : bestAnyScore;
+    if (!bestAngle || bestScore <= 0) return false;
+
+    const joint = GameConfig.ANGLE_JOINTS[bestAngle];
+    if (!joint || joint.length < 2) return false;
+
+    const [p1, vertexIdx, p2] = joint;
+    let targetIdx = null;
+    let targetLm = null;
+
+    const candidates = [p2, p1, vertexIdx];
+    const torsoCenter = (landmarks[11] && landmarks[12] && landmarks[23] && landmarks[24])
+        ? getTorsoCenter(landmarks)
+        : null;
+
+    if (torsoCenter) {
+        let bestDist = -1;
+        for (const idx of candidates) {
+            const lm = landmarks[idx];
+            if (!lm || lm.visibility < 0.5) continue;
+            const dx = lm.x - torsoCenter.x;
+            const dy = lm.y - torsoCenter.y;
+            const dist = dx * dx + dy * dy;
+            if (dist > bestDist) {
+                bestDist = dist;
+                targetIdx = idx;
+                targetLm = lm;
+            }
+        }
+    }
+
+    if (!targetLm) {
+        for (const idx of candidates) {
+            const lm = landmarks[idx];
+            if (!lm || lm.visibility < 0.5) continue;
+            targetIdx = idx;
+            targetLm = lm;
+            break;
+        }
+    }
+
+    if (!targetLm) return false;
+
+    const x = clamp01(targetLm.x);
+    const y = clamp01(targetLm.y);
+    const smooth = 0.45;
+
+    if (effectsState.hasInput) {
+        effectsState.x = effectsState.x * (1 - smooth) + x * smooth;
+        effectsState.y = effectsState.y * (1 - smooth) + y * smooth;
+    } else {
+        effectsState.x = x;
+        effectsState.y = y;
+    }
+
+    effectsState.hasInput = true;
+    effectsState.bestAngle = bestAngle;
+    effectsState.bestAngleScore = bestScore;
+    effectsState.bestAngleLandmark = targetIdx;
+    return true;
+}
+
+function syncEffectsState() {
+    if (!effectsState) return;
+
+    const accuracyThreshold = GameConfig?.SCORE_ACCURACY_THRESHOLD ?? 0.7;
+    const maxCombo = GameConfig?.MAX_COMBO ?? 5;
+
+    const active = !!effectsEnabled &&
+        isPlaying &&
+        isCalibrated &&
+        currentAccuracy >= accuracyThreshold &&
+        combo > 0;
+
+    let strength = 0;
+    if (active) {
+        const accuracyBoost = clamp01(
+            (currentAccuracy - accuracyThreshold) / Math.max(1e-6, 1 - accuracyThreshold)
+        );
+        const comboBoost = clamp01(maxCombo > 0 ? combo / maxCombo : 0);
+        strength = Math.max(0.15, accuracyBoost * 0.7 + comboBoost * 0.3);
+    }
+
+    effectsState.enabled = !!effectsEnabled;
+    effectsState.active = active;
+    effectsState.strength = strength;
+
+    // Keep the effects layer visible while enabled so particles can fade out.
+    setEffectsLayerActive(!!effectsEnabled);
+}
+
+function resizeGameCanvas() {
     if (!canvas || !videoElement) return;
 
     const video = videoElement;
@@ -227,11 +416,23 @@ function resizeCanvas() {
     video.style.height = renderHeight + 'px';
     video.style.left = ((containerWidth - renderWidth) / 2) + 'px';
     video.style.top = '0px';
+
+    const fxLayer = getGameEffectsLayer();
+    if (fxLayer) {
+        fxLayer.style.width = renderWidth + 'px';
+        fxLayer.style.height = renderHeight + 'px';
+        fxLayer.style.left = ((containerWidth - renderWidth) / 2) + 'px';
+        fxLayer.style.top = '0px';
+    }
+
+    if (window.cloneDanceResizeEffects) {
+        window.cloneDanceResizeEffects(renderWidth, renderHeight);
+    }
 }
 
 // Resize canvas when video metadata loads or window resizes
 window.addEventListener('resize', () => {
-    resizeCanvas();
+    resizeGameCanvas();
     resizeCalibrationCanvas();
 });
 
@@ -291,7 +492,7 @@ async function initGame() {
 
         await new Promise((resolve) => {
             videoElement.onloadedmetadata = () => {
-                resizeCanvas();
+                resizeGameCanvas();
 
                 // Setup slider max value based on video duration
                 if (videoElement.duration) {
@@ -369,18 +570,22 @@ async function initGame() {
         document.getElementById('loading').classList.remove('active');
         document.getElementById('setupScreen').classList.add('hidden');
         document.getElementById('gameScreen').classList.remove('hidden');
+        syncEffectsState();
+        if (window.cloneDanceResizeEffects) {
+            window.cloneDanceResizeEffects();
+        }
 
-        // Call resizeCanvas multiple times to ensure proper sizing
+        // Call resizeGameCanvas multiple times to ensure proper sizing
         setTimeout(() => {
-            resizeCanvas();
+            resizeGameCanvas();
         }, 100);
 
         setTimeout(() => {
-            resizeCanvas();
+            resizeGameCanvas();
         }, 300);
 
         setTimeout(() => {
-            resizeCanvas();
+            resizeGameCanvas();
         }, 500);
 
         startCalibration();
@@ -486,6 +691,7 @@ function startCalibration() {
     document.getElementById('calibrationScreen').classList.add('active');
     document.getElementById('calibrationStatus').textContent = 'Loading pose... Don\'t skip yet';
     document.getElementById('calibrationProgress').style.width = '0%';
+    syncEffectsState();
 }
 
 /**
@@ -498,7 +704,8 @@ function skipCalibration() {
     offsetX = 0;
     offsetY = 0;
     document.getElementById('calibrationScreen').classList.remove('active');
-    resizeCanvas();
+    resizeGameCanvas();
+    syncEffectsState();
 
     // Auto-start game after calibration
     setTimeout(() => {
@@ -546,6 +753,8 @@ function startGameAfterCalibration() {
             window.playerVideoElement.currentTime = videoElement.currentTime;
             window.playerVideoElement.play();
         }
+
+        syncEffectsState();
     }
 }
 
@@ -848,6 +1057,13 @@ function comparePoses(playerLandmarks, referencePose) {
 
     if (debugEnabled)
         updateAngleDebugOverlay(angleResult);
+
+    if (angleResult) {
+        const usedAngle = updateEffectsInputFromAngleResult(angleResult, playerLandmarks);
+        if (!usedAngle) {
+            updateEffectsInputFromPose(playerLandmarks);
+        }
+    }
 
     return {
         overall_score: overall_score,
@@ -1263,6 +1479,7 @@ function updateScore(angleAccuracy, nowTimeSec) {
     }
 
     updateUI();
+    syncEffectsState();
 }
 
 /**
@@ -1323,6 +1540,8 @@ function togglePlayPause() {
 
         btn.textContent = 'Play';
     }
+
+    syncEffectsState();
 }
 
 /**
@@ -1354,6 +1573,7 @@ function resetGame() {
         angleDebugEl.textContent = '';
     }
     updateUI();
+    syncEffectsState();
 }
 
 function resizeCalibrationCanvas() {
