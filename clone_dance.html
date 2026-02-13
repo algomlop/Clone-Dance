@@ -107,6 +107,7 @@
             color: var(--neon-blue);
             text-transform: uppercase;
             letter-spacing: 1px;
+            text-align: left;
         }
 
         .stat-value {
@@ -115,6 +116,16 @@
             font-weight: 700;
             color: var(--neon-green);
             text-shadow: 0 0 15px rgba(0, 255, 136, 0.8);
+        }
+
+        .accuracy-warning {
+            margin-left: 8px;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #ffd166;
+            text-shadow: 0 0 10px rgba(255, 209, 102, 0.7);
+            white-space: nowrap;
         }
 
         .game-container {
@@ -873,7 +884,7 @@
                         </div>
                         <div class="stat">
                             <div class="stat-label">Accuracy</div>
-                            <div class="stat-value" id="accuracy">0%</div>
+                            <div class="stat-value"><span id="accuracy">0%</span><span id="accuracyWarning" class="accuracy-warning"></span></div>
                         </div>
                     </div>
                 </div>
