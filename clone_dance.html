@@ -814,6 +814,102 @@
         .toggle-switch.active::after {
             transform: translateX(24px);
         }
+
+        .countdown-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(10, 10, 15, 0.45);
+            z-index: 12;
+            pointer-events: none;
+        }
+
+        .countdown-value {
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(6rem, 20vw, 16rem);
+            font-weight: 900;
+            line-height: 1;
+            color: var(--neon-green);
+            text-shadow: 0 0 36px rgba(0, 255, 136, 0.95), 0 0 80px rgba(0, 212, 255, 0.55);
+            user-select: none;
+        }
+
+        .stats-screen {
+            position: fixed;
+            inset: 0;
+            background: rgba(10, 10, 15, 0.95);
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 110;
+            padding: 20px;
+        }
+
+        .stats-card {
+            width: 100%;
+            max-width: 560px;
+            background: rgba(26, 26, 46, 0.92);
+            border: 2px solid var(--neon-blue);
+            border-radius: 18px;
+            box-shadow: 0 0 40px rgba(0, 212, 255, 0.3);
+            padding: 28px;
+            text-align: center;
+        }
+
+        .stats-card h2 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2.2rem;
+            margin-bottom: 22px;
+            color: var(--neon-pink);
+            text-shadow: 0 0 22px rgba(255, 0, 128, 0.6);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+            margin-bottom: 24px;
+        }
+
+        .stats-item {
+            background: rgba(0, 0, 0, 0.35);
+            border: 1px solid rgba(0, 212, 255, 0.35);
+            border-radius: 10px;
+            padding: 12px 10px;
+        }
+
+        .stats-value {
+            margin-top: 6px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--neon-green);
+            text-shadow: 0 0 14px rgba(0, 255, 136, 0.75);
+        }
+
+        .stats-actions {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        @media (max-width: 640px) {
+            .stats-card {
+                padding: 22px 16px;
+            }
+
+            .stats-card h2 {
+                font-size: 1.8rem;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
     <base target="_blank">
 </head>
@@ -830,7 +926,7 @@
                 </div>
 
                 <div class="file-input-group">
-                    <label>Choreography JSON</label>
+                    <label>Choreography (JSON)</label>
                     <input type="file" id="jsonFile" accept="application/json" required>
                 </div>
 
@@ -850,10 +946,10 @@
                     <span class="toggle-label">Mirror Input:</span>
                     <div class="toggle-switch" id="mirrorToggle"></div>
                   
-                    <span class="toggle-label">Enable Visual Effects:</span>
+                    <span class="toggle-label">Visual Effects:</span>
                     <div class="toggle-switch" id="enable-effectsToggle"></div>
 
-                    <span class="toggle-label">Debug mode:</span>
+                    <span class="toggle-label">Debug:</span>
                     <div class="toggle-switch" id="debugToggle"></div>
       
                 </div>
@@ -893,17 +989,48 @@
             <div class="game-container">
                 <div class="main-panel">
                     <div class="video-container">
-                        <video id="referenceVideo" loop></video>
+                        <video id="referenceVideo"></video>
                         <div id="effectsLayer"></div>
                         <canvas id="playerCanvas"></canvas>
                         <div class="combo-indicator" id="comboIndicator">COMBO x<span id="comboValue">0</span>!</div>
                         <div class="feedback" id="feedback"></div>
+                        <div class="countdown-overlay hidden" id="countdownOverlay">
+                            <div class="countdown-value" id="countdownValue">3</div>
+                        </div>
                         <div class="controls">
                             <button class="btn-primary" id="playPauseBtn">Play</button>
                             <button class="btn-secondary" id="resetBtn">Reset</button>
                             <button class="btn-secondary" id="recalibrateBtn">Recalibrate</button>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="statsScreen" class="stats-screen hidden">
+            <div class="stats-card">
+                <h2>Song Complete</h2>
+                <div class="stats-grid">
+                    <div class="stats-item">
+                        <div class="stat-label">Final Score</div>
+                        <div class="stats-value" id="finalScore">0</div>
+                    </div>
+                    <div class="stats-item">
+                        <div class="stat-label">Avg Accuracy</div>
+                        <div class="stats-value" id="finalAccuracy">0%</div>
+                    </div>
+                    <div class="stats-item">
+                        <div class="stat-label">Max Combo</div>
+                        <div class="stats-value" id="finalCombo">0</div>
+                    </div>
+                    <div class="stats-item">
+                        <div class="stat-label">Time Danced</div>
+                        <div class="stats-value" id="finalDuration">0.0s</div>
+                    </div>
+                </div>
+                <div class="stats-actions">
+                    <button class="btn-primary" id="retrySongBtn">Retry Song</button>
+                    <button class="btn-secondary" id="backToStartBtn">Back to Start</button>
                 </div>
             </div>
         </div>

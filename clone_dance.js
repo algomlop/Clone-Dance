@@ -30,6 +30,10 @@ let currentPlayerPose = null;
 let referenceLowAnglesSinceSec = null;
 let playerLowAnglesSinceSec = null;
 let noPoseWarningMessage = '';
+let isCountdownActive = false;
+let statsMaxCombo = 0;
+let statsAverageAccuracyAccum = 0;
+let statsTrackedTimeSec = 0;
 
 let gameEffectsLayerEl = null;
 const effectsState = window.cloneDanceEffectsState || {
@@ -125,6 +129,8 @@ document.getElementById('playPauseBtn').addEventListener('click', togglePlayPaus
 document.getElementById('resetBtn').addEventListener('click', resetGame);
 document.getElementById('recalibrateBtn').addEventListener('click', startCalibration);
 document.getElementById('skipCalibrationBtn').addEventListener('click', skipCalibration);
+document.getElementById('retrySongBtn').addEventListener('click', retrySong);
+document.getElementById('backToStartBtn').addEventListener('click', backToStart);
 
 // Mirror toggle
 document.getElementById('mirrorToggle').addEventListener('click', () => {
@@ -190,6 +196,134 @@ function setEffectsLayerActive(isActive) {
 
 function clamp01(value) {
     return Math.max(0, Math.min(1, value));
+}
+
+function setGameControlsDisabled(disabled) {
+    for (const id of ['playPauseBtn', 'resetBtn', 'recalibrateBtn']) {
+        const el = document.getElementById(id);
+        if (el) {
+            el.disabled = disabled;
+        }
+    }
+}
+
+function showCountdownValue(value) {
+    const overlay = document.getElementById('countdownOverlay');
+    const valueEl = document.getElementById('countdownValue');
+    if (!overlay || !valueEl) return;
+    valueEl.textContent = value;
+    overlay.classList.remove('hidden');
+}
+
+function hideCountdownOverlay() {
+    const overlay = document.getElementById('countdownOverlay');
+    if (!overlay) return;
+    overlay.classList.add('hidden');
+}
+
+function waitMs(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function hideStatsScreen() {
+    const statsScreen = document.getElementById('statsScreen');
+    if (!statsScreen) return;
+    statsScreen.classList.add('hidden');
+}
+
+function showStatsScreen() {
+    const avgAccuracy = statsTrackedTimeSec > 0
+        ? clamp01(statsAverageAccuracyAccum / statsTrackedTimeSec)
+        : clamp01(currentAccuracy);
+    const dancedSeconds = statsTrackedTimeSec > 0
+        ? statsTrackedTimeSec
+        : (Number.isFinite(videoElement?.duration) ? videoElement.duration : 0);
+
+    const finalScoreEl = document.getElementById('finalScore');
+    const finalAccuracyEl = document.getElementById('finalAccuracy');
+    const finalComboEl = document.getElementById('finalCombo');
+    const finalDurationEl = document.getElementById('finalDuration');
+    const statsScreen = document.getElementById('statsScreen');
+
+    if (finalScoreEl) finalScoreEl.textContent = String(Math.floor(score));
+    if (finalAccuracyEl) finalAccuracyEl.textContent = (avgAccuracy * 100).toFixed(0) + '%';
+    if (finalComboEl) finalComboEl.textContent = String(statsMaxCombo);
+    if (finalDurationEl) finalDurationEl.textContent = dancedSeconds.toFixed(1) + 's';
+    if (statsScreen) statsScreen.classList.remove('hidden');
+}
+
+function handleSongEnded() {
+    if (!videoElement || isCountdownActive || !isCalibrated) return;
+
+    isPlaying = false;
+    lastScoreTimeSec = null;
+    resetNoPoseState();
+
+    if (window.playerVideoElement) {
+        window.playerVideoElement.pause();
+    }
+
+    document.getElementById('playPauseBtn').textContent = 'Play';
+    syncEffectsState();
+    showStatsScreen();
+}
+
+function startSongPlaybackFromBeginning() {
+    if (!videoElement) return;
+
+    isPlaying = true;
+    lastScoreTimeSec = getGameTimeSec();
+    goodTimeAccumSec = 0;
+    goodStreakSec = 0;
+    combo = 0;
+    resetNoPoseState();
+    updateComboIndicator();
+
+    videoElement.currentTime = 0;
+    videoElement.muted = false;
+    videoElement.volume = 1.0;
+
+    const playPromise = videoElement.play();
+    if (playPromise !== undefined) {
+        playPromise.then(() => {
+            document.getElementById('playPauseBtn').textContent = 'Pause';
+        }).catch((error) => {
+            console.warn("Autoplay prevented:", error);
+            showAudioFallback();
+        });
+    }
+
+    if (window.playerVideoElement) {
+        window.playerVideoElement.currentTime = 0;
+        window.playerVideoElement.play();
+    }
+
+    syncEffectsState();
+}
+
+async function startSongWithCountdown() {
+    if (!isCalibrated || !videoElement || isCountdownActive) return;
+
+    hideStatsScreen();
+    resetGame();
+    isCountdownActive = true;
+    setGameControlsDisabled(true);
+
+    try {
+        const countdownValues = ['3', '2', '1'];
+        for (const value of countdownValues) {
+            if (!isCountdownActive) return;
+            showCountdownValue(value);
+            await waitMs(900);
+        }
+
+        if (!isCountdownActive) return;
+        startSongPlaybackFromBeginning();
+    } finally {
+        hideCountdownOverlay();
+        setGameControlsDisabled(false);
+        isCountdownActive = false;
+    }
 }
 
 function updateEffectsInputFromPose(landmarks) {
@@ -470,6 +604,8 @@ async function initGame() {
         console.log("Setting up reference video...");
         videoElement = document.getElementById('referenceVideo');
         videoElement.src = URL.createObjectURL(videoFile);
+        videoElement.loop = false;
+        videoElement.onended = handleSongEnded;
 
         // Setup calibration video (same source)
         calibrationVideo = document.getElementById('calibrationVideo');
@@ -573,6 +709,7 @@ async function initGame() {
         document.getElementById('loading').classList.remove('active');
         document.getElementById('setupScreen').classList.add('hidden');
         document.getElementById('gameScreen').classList.remove('hidden');
+        hideStatsScreen();
         syncEffectsState();
         if (window.cloneDanceResizeEffects) {
             window.cloneDanceResizeEffects();
@@ -671,6 +808,10 @@ function onPoseResults(results) {
  * Start calibration process
  */
 function startCalibration() {
+    isCountdownActive = false;
+    hideCountdownOverlay();
+    hideStatsScreen();
+    setGameControlsDisabled(false);
     isCalibrated = false;
     isPlaying = false;
     calibrationFrames = 0;
@@ -721,46 +862,8 @@ function skipCalibration() {
  * Start game automatically after successful calibration
  */
 function startGameAfterCalibration() {
-    console.log("Auto-starting game after calibration");
-
-    // For browser autoplay policies, we need user interaction
-    // But since they just calibrated, we can try to play
-    // If it fails due to audio policy, we show a "Click to Start" overlay
-
-    if (!isPlaying) {
-        isPlaying = true;
-        lastScoreTimeSec = getGameTimeSec();
-        goodTimeAccumSec = 0;
-        goodStreakSec = 0;
-        combo = 0;
-        resetNoPoseState();
-        updateComboIndicator();
-
-        // Try to play reference video
-        videoElement.muted = false;
-        videoElement.volume = 1.0;
-
-        const playPromise = videoElement.play();
-
-        if (playPromise !== undefined) {
-            playPromise.then(() => {
-                console.log("Video playing automatically");
-                document.getElementById('playPauseBtn').textContent = 'Pause';
-            }).catch(error => {
-                console.warn("Autoplay prevented:", error);
-                // Show click-to-start overlay or fallback
-                showAudioFallback();
-            });
-        }
-
-        // Sync player video if exists
-        if (window.playerVideoElement) {
-            window.playerVideoElement.currentTime = videoElement.currentTime;
-            window.playerVideoElement.play();
-        }
-
-        syncEffectsState();
-    }
+    console.log("Starting song with countdown");
+    startSongWithCountdown();
 }
 
 /**
@@ -793,8 +896,16 @@ function showAudioFallback() {
     `;
 
     overlay.addEventListener('click', () => {
+        videoElement.currentTime = 0;
         videoElement.play();
+        if (window.playerVideoElement) {
+            window.playerVideoElement.currentTime = 0;
+            window.playerVideoElement.play();
+        }
+        lastScoreTimeSec = getGameTimeSec();
+        isPlaying = true;
         document.getElementById('playPauseBtn').textContent = 'Pause';
+        syncEffectsState();
         overlay.remove();
     });
 
@@ -1544,6 +1655,9 @@ function updateScore(angleAccuracy, nowTimeSec, options = {}) {
         updateUI();
         return;
     }
+    
+    statsAverageAccuracyAccum += currentAccuracy * delta;
+    statsTrackedTimeSec += delta;
 
     if (currentAccuracy >= accuracyThreshold) {
         goodTimeAccumSec += delta;
@@ -1561,6 +1675,7 @@ function updateScore(angleAccuracy, nowTimeSec, options = {}) {
         } else if (combo > 0) {
             updateComboIndicator();
         }
+        statsMaxCombo = Math.max(statsMaxCombo, combo);
     } else {
         goodTimeAccumSec = 0;
         goodStreakSec = 0;
@@ -1609,11 +1724,25 @@ function togglePlayPause() {
         alert('Please complete calibration first');
         return;
     }
+    if (isCountdownActive) {
+        return;
+    }
 
     isPlaying = !isPlaying;
     const btn = document.getElementById('playPauseBtn');
 
     if (isPlaying) {
+        const duration = videoElement.duration;
+        if (
+            videoElement.ended ||
+            (Number.isFinite(duration) && duration > 0 && videoElement.currentTime >= duration)
+        ) {
+            isPlaying = false;
+            startGameAfterCalibration();
+            return;
+        }
+
+        hideStatsScreen();
         resetNoPoseState();
         videoElement.muted = false;
         videoElement.volume = 1.0;
@@ -1645,6 +1774,10 @@ function togglePlayPause() {
  * Reset game
  */
 function resetGame() {
+    isCountdownActive = false;
+    hideCountdownOverlay();
+    hideStatsScreen();
+    setGameControlsDisabled(false);
     score = 0;
     combo = 0;
     totalFrames = 0;
@@ -1655,9 +1788,15 @@ function resetGame() {
     goodStreakSec = 0;
     positionSmoothHistory = {};
     angleSmoothHistory = {};
+    statsMaxCombo = 0;
+    statsAverageAccuracyAccum = 0;
+    statsTrackedTimeSec = 0;
     resetNoPoseState();
 
-    videoElement.currentTime = 0;
+    if (videoElement) {
+        videoElement.pause();
+        videoElement.currentTime = 0;
+    }
     isPlaying = false;
 
     if (window.playerVideoElement) {
@@ -1672,6 +1811,16 @@ function resetGame() {
     }
     updateUI();
     syncEffectsState();
+}
+
+function retrySong() {
+    if (!isCalibrated) return;
+    hideStatsScreen();
+    startGameAfterCalibration();
+}
+
+function backToStart() {
+    window.location.reload();
 }
 
 function resizeCalibrationCanvas() {
