@@ -16,6 +16,7 @@ let calibrationVideo = null;
 
 let score = 0;
 let combo = 0;
+let combosAchieved = 0;
 let totalFrames = 0;
 let matchedFrames = 0;
 let currentAccuracy = 0;
@@ -81,6 +82,13 @@ const REWARD_SOUND_VOLUMES = {
     comboMax: 0.7
 };
 
+const DEFAULT_COMBO_INDICATOR_HOLD_SEC = 0.8;
+const DEFAULT_CONTROLS_IDLE_HIDE_SEC = 1.5;
+
+let comboIndicatorDisplayValue = 0;
+let comboIndicatorVisibleUntilMs = 0;
+let controlsIdleTimer = null;
+
 let gameEffectsLayerEl = null;
 const effectsState = window.cloneDanceEffectsState || {
     enabled: false,
@@ -114,6 +122,249 @@ let angleSmoothHistory = {};
 
 let GameConfig = null;
 let gameConfigPromise = null;
+let baseGameConfig = null;
+
+const DIFFICULTY_KEYS = ['easy', 'medium', 'expert'];
+const DEFAULT_DIFFICULTY_KEY = 'medium';
+const DIFFICULTY_LABELS = {
+    easy: 'Easy',
+    medium: 'Medium',
+    expert: 'Expert'
+};
+
+const DIFFICULTY_FALLBACK_PRESETS = {
+    easy: {
+        SCORE_ACCURACY_THRESHOLD: 0.62,
+        SCORE_POINTS_PER_SECOND: 90,
+        COMBO_SECONDS: 1.35,
+        MAX_COMBO: 4,
+        PERFORMANCE_FEEDBACK_INTERVAL_SEC: 1.0,
+        PERFORMANCE_FEEDBACK_THRESHOLD_GOOD: 0.62,
+        PERFORMANCE_FEEDBACK_THRESHOLD_GREAT: 0.74,
+        PERFORMANCE_FEEDBACK_THRESHOLD_PERFECT: 0.85,
+        VISUAL_FEEDBACK_SCALE: 0.9,
+        VISUAL_FEEDBACK_ANIMATION_SEC: 0.62,
+        VISUAL_COMBO_PULSE_SCALE: 1.05
+    },
+    medium: {
+        SCORE_ACCURACY_THRESHOLD: 0.72,
+        SCORE_POINTS_PER_SECOND: 120,
+        COMBO_SECONDS: 2.0,
+        MAX_COMBO: 6,
+        PERFORMANCE_FEEDBACK_INTERVAL_SEC: 0.7,
+        PERFORMANCE_FEEDBACK_THRESHOLD_GOOD: 0.72,
+        PERFORMANCE_FEEDBACK_THRESHOLD_GREAT: 0.83,
+        PERFORMANCE_FEEDBACK_THRESHOLD_PERFECT: 0.92,
+        VISUAL_FEEDBACK_SCALE: 1,
+        VISUAL_FEEDBACK_ANIMATION_SEC: 0.72,
+        VISUAL_COMBO_PULSE_SCALE: 1.1
+    },
+    expert: {
+        SCORE_ACCURACY_THRESHOLD: 0.84,
+        SCORE_POINTS_PER_SECOND: 170,
+        COMBO_SECONDS: 2.6,
+        MAX_COMBO: 9,
+        PERFORMANCE_FEEDBACK_INTERVAL_SEC: 0.45,
+        PERFORMANCE_FEEDBACK_THRESHOLD_GOOD: 0.84,
+        PERFORMANCE_FEEDBACK_THRESHOLD_GREAT: 0.91,
+        PERFORMANCE_FEEDBACK_THRESHOLD_PERFECT: 0.97,
+        VISUAL_FEEDBACK_SCALE: 1.2,
+        VISUAL_FEEDBACK_ANIMATION_SEC: 0.95,
+        VISUAL_COMBO_PULSE_SCALE: 1.16
+    }
+};
+
+const DIFFICULTY_INPUT_FIELDS = [
+    { id: 'difficultyAccuracyThreshold', key: 'SCORE_ACCURACY_THRESHOLD', min: 0, max: 1, decimals: 2 },
+    { id: 'difficultyPointsPerSecond', key: 'SCORE_POINTS_PER_SECOND', min: 0, max: 1000, decimals: 0, integer: true },
+    { id: 'difficultyComboSeconds', key: 'COMBO_SECONDS', min: 0.1, max: 10, decimals: 2 },
+    { id: 'difficultyMaxCombo', key: 'MAX_COMBO', min: 1, max: 20, decimals: 0, integer: true },
+    { id: 'difficultyFeedbackInterval', key: 'PERFORMANCE_FEEDBACK_INTERVAL_SEC', min: 0, max: 5, decimals: 2 },
+    { id: 'difficultyFeedbackGood', key: 'PERFORMANCE_FEEDBACK_THRESHOLD_GOOD', min: 0, max: 1, decimals: 2 },
+    { id: 'difficultyFeedbackGreat', key: 'PERFORMANCE_FEEDBACK_THRESHOLD_GREAT', min: 0, max: 1, decimals: 2 },
+    { id: 'difficultyFeedbackPerfect', key: 'PERFORMANCE_FEEDBACK_THRESHOLD_PERFECT', min: 0, max: 1, decimals: 2 },
+    { id: 'difficultyFeedbackScale', key: 'VISUAL_FEEDBACK_SCALE', min: 0.6, max: 1.8, decimals: 2 },
+    { id: 'difficultyFeedbackAnimSec', key: 'VISUAL_FEEDBACK_ANIMATION_SEC', min: 0.2, max: 2, decimals: 2 },
+    { id: 'difficultyComboPulseScale', key: 'VISUAL_COMBO_PULSE_SCALE', min: 1, max: 1.6, decimals: 2 }
+];
+
+let difficultyPresets = normalizeDifficultyPresets();
+let initialDifficultyPresets = cloneDifficultyPresetMap(difficultyPresets);
+let selectedDifficultyKey = DEFAULT_DIFFICULTY_KEY;
+let isSyncingDifficultyInputs = false;
+
+function resolveDifficultyKey(value, fallback = DEFAULT_DIFFICULTY_KEY) {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (DIFFICULTY_KEYS.includes(normalized)) return normalized;
+    return fallback;
+}
+
+function cloneDifficultyPresetMap(presetMap = {}) {
+    const cloned = {};
+    for (const key of DIFFICULTY_KEYS) {
+        cloned[key] = { ...(presetMap[key] || {}) };
+    }
+    return cloned;
+}
+
+function normalizeDifficultyPresets(rawPresets = null) {
+    const normalized = {};
+    for (const key of DIFFICULTY_KEYS) {
+        const rawPreset = rawPresets && typeof rawPresets[key] === 'object' && rawPresets[key] !== null
+            ? rawPresets[key]
+            : {};
+        normalized[key] = { ...DIFFICULTY_FALLBACK_PRESETS[key], ...rawPreset };
+    }
+    return normalized;
+}
+
+function formatNumberForInput(value, decimals = 2) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return '';
+    if (!Number.isFinite(decimals) || decimals <= 0) {
+        return String(Math.round(numeric));
+    }
+    return numeric.toFixed(decimals).replace(/\.?0+$/, '');
+}
+
+function getSelectedDifficultyPreset() {
+    if (!difficultyPresets[selectedDifficultyKey]) {
+        difficultyPresets[selectedDifficultyKey] = { ...DIFFICULTY_FALLBACK_PRESETS[selectedDifficultyKey] };
+    }
+    return difficultyPresets[selectedDifficultyKey];
+}
+
+function applyDifficultyVisualSettings(config = null) {
+    const source = config || getSelectedDifficultyPreset();
+    const root = document.documentElement;
+    if (!root) return;
+
+    const feedbackScale = clampNumber(source?.VISUAL_FEEDBACK_SCALE, 0.6, 1.8, 1);
+    const feedbackAnimSec = clampNumber(source?.VISUAL_FEEDBACK_ANIMATION_SEC, 0.2, 2, 0.72);
+    const comboPulseScale = clampNumber(source?.VISUAL_COMBO_PULSE_SCALE, 1, 1.6, 1.1);
+
+    root.style.setProperty('--feedback-scale', String(feedbackScale));
+    root.style.setProperty('--feedback-animation-sec', `${feedbackAnimSec}s`);
+    root.style.setProperty('--combo-pulse-scale', String(comboPulseScale));
+}
+
+
+
+function updateDifficultySummary() {
+    const summaryEl = document.getElementById('difficultySummary');
+    const preset = getSelectedDifficultyPreset();
+    const source = GameConfig || preset;
+    if (!summaryEl) return;
+
+    const accuracyThreshold = clamp01(Number(source.SCORE_ACCURACY_THRESHOLD ?? preset.SCORE_ACCURACY_THRESHOLD ?? 0.7));
+    const pointsPerSecond = Math.max(0, Math.round(Number(source.SCORE_POINTS_PER_SECOND ?? preset.SCORE_POINTS_PER_SECOND ?? 100)));
+    const comboSeconds = clampNumber(source.COMBO_SECONDS ?? preset.COMBO_SECONDS, 0.1, 10, 2);
+    const maxCombo = Math.max(1, Math.round(Number(source.MAX_COMBO ?? preset.MAX_COMBO ?? 5)));
+    const feedbackInterval = clampNumber(source.PERFORMANCE_FEEDBACK_INTERVAL_SEC ?? preset.PERFORMANCE_FEEDBACK_INTERVAL_SEC, 0, 5, 0.5);
+    const feedbackScale = clampNumber(source.VISUAL_FEEDBACK_SCALE ?? preset.VISUAL_FEEDBACK_SCALE, 0.6, 1.8, 1);
+    const feedbackAnim = clampNumber(source.VISUAL_FEEDBACK_ANIMATION_SEC ?? preset.VISUAL_FEEDBACK_ANIMATION_SEC, 0.2, 2, 0.72);
+    const comboPulse = clampNumber(source.VISUAL_COMBO_PULSE_SCALE ?? preset.VISUAL_COMBO_PULSE_SCALE, 1, 1.6, 1.1);
+
+    summaryEl.textContent =
+        `${DIFFICULTY_LABELS[selectedDifficultyKey] || selectedDifficultyKey}: ` +
+        `Accuracy >= ${Math.round(accuracyThreshold * 100)}% | ` +
+        `+${pointsPerSecond} pts/s | ` +
+        `Combo ${comboSeconds.toFixed(2)}s (max ${maxCombo}) | ` +
+        `Feedback ${feedbackInterval.toFixed(2)}s / x${feedbackScale.toFixed(2)} / ${feedbackAnim.toFixed(2)}s / pulse ${comboPulse.toFixed(2)}x`;
+}
+
+function syncDifficultyInputValues() {
+    const preset = getSelectedDifficultyPreset();
+    isSyncingDifficultyInputs = true;
+
+    for (const field of DIFFICULTY_INPUT_FIELDS) {
+        const inputEl = document.getElementById(field.id);
+        if (!inputEl) continue;
+        inputEl.value = formatNumberForInput(preset[field.key], field.decimals);
+    }
+
+    isSyncingDifficultyInputs = false;
+}
+
+function applyDifficultyFieldEdit(field, inputEl) {
+    if (isSyncingDifficultyInputs || !field || !inputEl) return;
+
+    const parsed = Number(inputEl.value);
+    if (!Number.isFinite(parsed)) {
+        syncDifficultyInputValues();
+        return;
+    }
+
+    let value = parsed;
+    if (Number.isFinite(field.min)) value = Math.max(field.min, value);
+    if (Number.isFinite(field.max)) value = Math.min(field.max, value);
+    if (field.integer) value = Math.round(value);
+
+    const updatedPreset = {
+        ...getSelectedDifficultyPreset(),
+        [field.key]: value
+    };
+    difficultyPresets[selectedDifficultyKey] = updatedPreset;
+    applyDifficultyPresetToGameConfig(selectedDifficultyKey, { syncSelect: true, syncInputs: true });
+}
+
+function resetSelectedDifficultyPreset() {
+    const baselinePreset = initialDifficultyPresets[selectedDifficultyKey] || DIFFICULTY_FALLBACK_PRESETS[selectedDifficultyKey];
+    difficultyPresets[selectedDifficultyKey] = { ...baselinePreset };
+    applyDifficultyPresetToGameConfig(selectedDifficultyKey, { syncSelect: true, syncInputs: true });
+}
+
+function applyDifficultyPresetToGameConfig(difficultyKey, options = {}) {
+    selectedDifficultyKey = resolveDifficultyKey(difficultyKey, selectedDifficultyKey);
+    const preset = getSelectedDifficultyPreset();
+
+    if (baseGameConfig) {
+        GameConfig = {
+            ...baseGameConfig,
+            ...preset,
+            CURRENT_DIFFICULTY: selectedDifficultyKey
+        };
+    }
+
+    if (options.syncSelect !== false) {
+        const difficultySelect = document.getElementById('difficultySelect');
+        if (difficultySelect) {
+            difficultySelect.value = selectedDifficultyKey;
+        }
+    }
+
+    if (options.syncInputs !== false) {
+        syncDifficultyInputValues();
+    }
+
+    applyDifficultyVisualSettings(GameConfig || preset);
+    updateDifficultySummary();
+}
+
+function initializeDifficultyControls() {
+    const difficultySelect = document.getElementById('difficultySelect');
+    if (difficultySelect) {
+        selectedDifficultyKey = resolveDifficultyKey(difficultySelect.value, selectedDifficultyKey);
+        difficultySelect.value = selectedDifficultyKey;
+        difficultySelect.addEventListener('change', (event) => {
+            difficultySelect.dataset.userSelected = 'true';
+            applyDifficultyPresetToGameConfig(event.target.value, { syncSelect: false, syncInputs: true });
+        });
+    }
+
+    for (const field of DIFFICULTY_INPUT_FIELDS) {
+        const inputEl = document.getElementById(field.id);
+        if (!inputEl) continue;
+        inputEl.addEventListener('change', () => applyDifficultyFieldEdit(field, inputEl));
+    }
+
+    const resetBtn = document.getElementById('resetDifficultyConfigBtn');
+    if (resetBtn) {
+        resetBtn.addEventListener('click', resetSelectedDifficultyPreset);
+    }
+
+    applyDifficultyPresetToGameConfig(selectedDifficultyKey, { syncSelect: true, syncInputs: true });
+}
 
 function getGameConfig() {
     if (GameConfig) {
@@ -128,7 +379,23 @@ function getGameConfig() {
 
     gameConfigPromise = window.loadAppConfig()
         .then((config) => {
-            GameConfig = { ...config.common, ...config.game };
+            const gameSection = config?.game || {};
+            baseGameConfig = { ...config.common, ...gameSection };
+            difficultyPresets = normalizeDifficultyPresets(gameSection.DIFFICULTY_PRESETS);
+            initialDifficultyPresets = cloneDifficultyPresetMap(difficultyPresets);
+
+            const configDefaultDifficulty = resolveDifficultyKey(
+                gameSection.DEFAULT_DIFFICULTY ?? baseGameConfig.DEFAULT_DIFFICULTY,
+                DEFAULT_DIFFICULTY_KEY
+            );
+            const difficultySelect = document.getElementById('difficultySelect');
+            const hasUserSelection = difficultySelect?.dataset?.userSelected === 'true';
+            const selectedFromUI = hasUserSelection
+                ? difficultySelect.value
+                : configDefaultDifficulty;
+            const requestedDifficulty = resolveDifficultyKey(selectedFromUI, configDefaultDifficulty);
+            applyDifficultyPresetToGameConfig(requestedDifficulty, { syncSelect: true, syncInputs: true });
+
             return GameConfig;
         });
 
@@ -177,6 +444,8 @@ document.getElementById('recalibrateBtn').addEventListener('click', startCalibra
 document.getElementById('skipCalibrationBtn').addEventListener('click', skipCalibration);
 document.getElementById('retrySongBtn').addEventListener('click', retrySong);
 document.getElementById('backToStartBtn').addEventListener('click', backToStart);
+initializeDifficultyControls();
+initializeControlsAutoHide();
 
 // Mirror toggle
 document.getElementById('mirrorToggle').addEventListener('click', () => {
@@ -244,6 +513,65 @@ function clamp01(value) {
     return Math.max(0, Math.min(1, value));
 }
 
+function clampNumber(value, min, max, fallback) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return fallback;
+    return Math.max(min, Math.min(max, numeric));
+}
+
+function getComboIndicatorHoldMs() {
+    const holdSec = Number(GameConfig?.COMBO_INDICATOR_HOLD_SEC);
+    const safeSec = Number.isFinite(holdSec) && holdSec >= 0
+        ? holdSec
+        : DEFAULT_COMBO_INDICATOR_HOLD_SEC;
+    return safeSec * 1000;
+}
+
+function getControlsIdleHideMs() {
+    const hideSec = Number(GameConfig?.CONTROLS_IDLE_HIDE_SEC);
+    const safeSec = Number.isFinite(hideSec) && hideSec >= 0
+        ? hideSec
+        : DEFAULT_CONTROLS_IDLE_HIDE_SEC;
+    return safeSec * 1000;
+}
+
+function setControlsVisible(visible) {
+    const container = document.querySelector('.video-container');
+    if (!container) return;
+    container.classList.toggle('controls-visible', visible === true);
+}
+
+function scheduleControlsAutoHide() {
+    if (controlsIdleTimer !== null) {
+        clearTimeout(controlsIdleTimer);
+        controlsIdleTimer = null;
+    }
+
+    const hideDelayMs = getControlsIdleHideMs();
+    if (!Number.isFinite(hideDelayMs) || hideDelayMs <= 0) return;
+
+    controlsIdleTimer = setTimeout(() => {
+        setControlsVisible(false);
+        controlsIdleTimer = null;
+    }, hideDelayMs);
+}
+
+function notifyControlsActivity() {
+    setControlsVisible(true);
+    scheduleControlsAutoHide();
+}
+
+function initializeControlsAutoHide() {
+    const container = document.querySelector('.video-container');
+    if (!container || container.dataset.controlsAutoHideInit === 'true') return;
+
+    container.dataset.controlsAutoHideInit = 'true';
+    for (const eventName of ['mousemove', 'mouseenter', 'click', 'touchstart', 'touchmove']) {
+        container.addEventListener(eventName, notifyControlsActivity, { passive: true });
+    }
+    notifyControlsActivity();
+}
+
 function initializeRewardSounds() {
     if (rewardSoundsInitialized) return;
 
@@ -295,9 +623,15 @@ function clearFeedbackDisplay() {
 }
 
 function getPerformanceTierThresholds(accuracyThreshold) {
-    const goodThreshold = clamp01(accuracyThreshold);
-    const greatThreshold = clamp01(Math.max(goodThreshold + 0.1, 0.8));
-    const perfectThreshold = clamp01(Math.max(greatThreshold + 0.08, 0.9));
+    const configuredGood = Number(GameConfig?.PERFORMANCE_FEEDBACK_THRESHOLD_GOOD);
+    const configuredGreat = Number(GameConfig?.PERFORMANCE_FEEDBACK_THRESHOLD_GREAT);
+    const configuredPerfect = Number(GameConfig?.PERFORMANCE_FEEDBACK_THRESHOLD_PERFECT);
+
+    const goodThreshold = clamp01(Number.isFinite(configuredGood) ? configuredGood : accuracyThreshold);
+    const greatBase = Number.isFinite(configuredGreat) ? configuredGreat : Math.max(goodThreshold + 0.1, 0.8);
+    const greatThreshold = clamp01(Math.max(greatBase, goodThreshold));
+    const perfectBase = Number.isFinite(configuredPerfect) ? configuredPerfect : Math.max(greatThreshold + 0.08, 0.9);
+    const perfectThreshold = clamp01(Math.max(perfectBase, greatThreshold));
 
     return { goodThreshold, greatThreshold, perfectThreshold };
 }
@@ -401,12 +735,14 @@ function showStatsScreen() {
     const finalAccuracyEl = document.getElementById('finalAccuracy');
     const finalComboEl = document.getElementById('finalCombo');
     const finalDurationEl = document.getElementById('finalDuration');
+    const finalDifficultyEl = document.getElementById('finalDifficulty');
     const statsScreen = document.getElementById('statsScreen');
 
     if (finalScoreEl) finalScoreEl.textContent = String(Math.floor(score));
     if (finalAccuracyEl) finalAccuracyEl.textContent = (avgAccuracy * 100).toFixed(0) + '%';
     if (finalComboEl) finalComboEl.textContent = String(statsMaxCombo);
     if (finalDurationEl) finalDurationEl.textContent = dancedSeconds.toFixed(1) + 's';
+    if (finalDifficultyEl) finalDifficultyEl.textContent = DIFFICULTY_LABELS[selectedDifficultyKey] || selectedDifficultyKey;
     if (statsScreen) statsScreen.classList.remove('hidden');
 }
 
@@ -434,10 +770,14 @@ function startSongPlaybackFromBeginning() {
     goodTimeAccumSec = 0;
     goodStreakSec = 0;
     combo = 0;
+    combosAchieved = 0;
+    comboIndicatorDisplayValue = 0;
+    comboIndicatorVisibleUntilMs = 0;
     resetPerformanceFeedbackState({ resetTimer: true });
     clearFeedbackDisplay();
     resetNoPoseState();
     updateComboIndicator();
+    notifyControlsActivity();
 
     videoElement.currentTime = 0;
     videoElement.muted = false;
@@ -757,6 +1097,8 @@ async function initGame() {
 
     try {
         await getGameConfig();
+        const requestedDifficulty = document.getElementById('difficultySelect')?.value;
+        applyDifficultyPresetToGameConfig(requestedDifficulty, { syncSelect: true, syncInputs: true });
         initializeRewardSounds();
         console.log("Loading JSON...");
         const jsonText = await jsonFile.text();
@@ -1681,8 +2023,21 @@ function updateComboIndicator() {
     const indicator = document.getElementById('comboIndicator');
     const comboVal = document.getElementById('comboValue');
     if (!indicator || !comboVal) return;
-    comboVal.textContent = combo;
-    indicator.classList.toggle('active', combo > 0);
+
+    const nowMs = performance.now();
+    if (combo > 0) {
+        comboIndicatorDisplayValue = combo;
+        comboIndicatorVisibleUntilMs = nowMs + getComboIndicatorHoldMs();
+    }
+
+    const shouldShow = combo > 0 || (comboIndicatorDisplayValue > 0 && nowMs < comboIndicatorVisibleUntilMs);
+    comboVal.textContent = shouldShow ? comboIndicatorDisplayValue : 0;
+    indicator.classList.toggle('active', shouldShow);
+
+    if (!shouldShow) {
+        comboIndicatorDisplayValue = 0;
+        comboIndicatorVisibleUntilMs = 0;
+    }
 }
 
 /**
@@ -1833,6 +2188,9 @@ function updateScore(angleAccuracy, nowTimeSec, options = {}) {
         const previousCombo = combo;
         if (newCombo !== combo) {
             combo = newCombo;
+            if (previousCombo === 0 && combo > 0) {
+                combosAchieved += 1;
+            }
             updateComboIndicator();
             handleComboReward(previousCombo, combo, maxCombo);
         } else if (combo > 0) {
@@ -1857,7 +2215,7 @@ function updateScore(angleAccuracy, nowTimeSec, options = {}) {
  */
 function updateUI() {
     document.getElementById('score').textContent = Math.floor(score);
-    document.getElementById('combo').textContent = combo;
+    document.getElementById('combo').textContent = combosAchieved;
 
     const accuracy = Math.max(0, Math.min(1, currentAccuracy)) * 100;
     document.getElementById('accuracy').textContent = accuracy.toFixed(0) + '%';
@@ -1896,6 +2254,8 @@ function showFeedback(text, color, feedbackClass = '') {
  * Toggle play/pause
  */
 function togglePlayPause() {
+    notifyControlsActivity();
+
     if (!isCalibrated) {
         alert('Please complete calibration first');
         return;
@@ -1956,6 +2316,9 @@ function resetGame() {
     setGameControlsDisabled(false);
     score = 0;
     combo = 0;
+    combosAchieved = 0;
+    comboIndicatorDisplayValue = 0;
+    comboIndicatorVisibleUntilMs = 0;
     totalFrames = 0;
     matchedFrames = 0;
     currentAccuracy = 0;
@@ -1984,6 +2347,7 @@ function resetGame() {
 
     document.getElementById('playPauseBtn').textContent = 'Play';
     updateComboIndicator();
+    notifyControlsActivity();
     if (angleDebugEl) {
         angleDebugEl.textContent = '';
     }

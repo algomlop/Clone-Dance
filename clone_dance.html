@@ -21,6 +21,14 @@
             --neon-purple: #b967ff;
             --dark-bg: #0a0a0f;
             --dark-surface: #1a1a2e;
+            --feedback-scale: 1;
+            --feedback-animation-sec: 0.72s;
+            --combo-pulse-scale: 1.1;
+            --combo-bg: rgba(185, 103, 255, 0.9);
+            --combo-shadow: rgba(185, 103, 255, 0.8);
+            --feedback-good-color: #00ff88;
+            --feedback-great-color: #00d4ff;
+            --feedback-perfect-color: #ffd84d;
         }
 
         body {
@@ -116,6 +124,14 @@
             font-weight: 700;
             color: var(--neon-green);
             text-shadow: 0 0 15px rgba(0, 255, 136, 0.8);
+        }
+
+        .stat-value.stat-value-difficulty {
+            font-size: 1rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--neon-blue);
+            text-shadow: 0 0 14px rgba(0, 212, 255, 0.7);
         }
 
         .accuracy-warning {
@@ -482,8 +498,7 @@
             pointer-events: none;
         }
 
-        .video-container:hover .controls,
-        .controls:hover {
+        .video-container.controls-visible .controls {
             opacity: 1;
             pointer-events: all;
         }
@@ -544,6 +559,9 @@
             border: 2px solid var(--neon-pink);
             box-shadow: 0 0 50px rgba(255, 0, 128, 0.4);
             max-width: 600px;
+            width: min(92vw, 600px);
+            max-height: 94vh;
+            overflow-y: auto;
             text-align: center;
         }
 
@@ -557,6 +575,71 @@
         .file-input-group {
             margin: 20px 0;
             text-align: left;
+        }
+
+        .difficulty-summary {
+            margin-top: 10px;
+            color: #9edfff;
+            font-size: 0.9rem;
+            line-height: 1.25;
+        }
+
+        .difficulty-config-card {
+            margin-top: 14px;
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid rgba(0, 212, 255, 0.45);
+            background: rgba(8, 12, 26, 0.62);
+        }
+
+        .difficulty-config-card > summary {
+            cursor: pointer;
+            list-style: none;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.85rem;
+            color: var(--neon-green);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .difficulty-config-card > summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .difficulty-config-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .difficulty-config-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            color: var(--neon-blue);
+            font-size: 0.82rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .difficulty-config-field input {
+            text-transform: none;
+            letter-spacing: normal;
+        }
+
+        .difficulty-config-hint {
+            margin-top: 10px;
+            color: #8aa3bf;
+            font-size: 0.78rem;
+            line-height: 1.3;
+        }
+
+        .difficulty-reset-btn {
+            margin-top: 10px;
+            width: 100%;
+            padding: 10px 14px;
+            font-size: 0.8rem;
         }
 
         .file-input-group label {
@@ -597,7 +680,7 @@
             position: absolute;
             top: 20px;
             right: 20px;
-            background: rgba(185, 103, 255, 0.9);
+            background: var(--combo-bg);
             padding: 15px 25px;
             border-radius: 10px;
             font-family: 'Orbitron', sans-serif;
@@ -605,7 +688,7 @@
             font-weight: 900;
             display: none;
             animation: pulse 0.5s ease-in-out infinite;
-            box-shadow: 0 0 30px rgba(185, 103, 255, 0.8);
+            box-shadow: 0 0 30px var(--combo-shadow);
             z-index: 10;
         }
 
@@ -621,7 +704,7 @@
             }
 
             50% {
-                transform: scale(1.1);
+                transform: scale(var(--combo-pulse-scale, 1.1));
             }
         }
 
@@ -677,42 +760,42 @@
         }
 
         .feedback.feedback-good {
-            color: #00ff88;
+            color: var(--feedback-good-color);
         }
 
         .feedback.feedback-great {
-            color: #00d4ff;
+            color: var(--feedback-great-color);
         }
 
         .feedback.feedback-perfect {
-            color: #ffd84d;
+            color: var(--feedback-perfect-color);
         }
 
         .feedback.show {
-            animation: feedbackPop 0.72s cubic-bezier(0.2, 0.8, 0.2, 1);
+            animation: feedbackPop var(--feedback-animation-sec, 0.72s) cubic-bezier(0.2, 0.8, 0.2, 1);
         }
 
         @keyframes feedbackPop {
             0% {
                 opacity: 0;
-                transform: translate(-50%, -42%) scale(0.55);
+                transform: translate(-50%, -42%) scale(calc(0.55 * var(--feedback-scale, 1)));
                 filter: blur(2px);
             }
 
             25% {
                 opacity: 1;
-                transform: translate(-50%, -50%) scale(1.08);
+                transform: translate(-50%, -50%) scale(calc(1.08 * var(--feedback-scale, 1)));
                 filter: blur(0px);
             }
 
             65% {
                 opacity: 1;
-                transform: translate(-50%, -53%) scale(1);
+                transform: translate(-50%, -53%) scale(calc(1 * var(--feedback-scale, 1)));
             }
 
             100% {
                 opacity: 0;
-                transform: translate(-50%, -60%) scale(0.92);
+                transform: translate(-50%, -60%) scale(calc(0.92 * var(--feedback-scale, 1)));
                 filter: blur(1px);
             }
         }
@@ -837,6 +920,12 @@
 
         .toggle-switch.active::after {
             transform: translateX(24px);
+        }
+
+        @media (max-width: 640px) {
+            .difficulty-config-grid {
+                grid-template-columns: 1fr;
+            }
         }
 
         .countdown-overlay {
@@ -965,6 +1054,59 @@
                         style="display: none; width: 100%; padding: 12px; background: rgba(0, 0, 0, 0.5); border: 2px solid var(--neon-blue); border-radius: 8px; color: white; font-family: 'Rajdhani', sans-serif;">
                 </div>
 
+                <div class="file-input-group">
+                    <label>Difficulty</label>
+                    <select id="difficultySelect">
+                        <option value="easy">Easy</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="expert">Expert</option>
+                    </select>
+                    <p id="difficultySummary" class="difficulty-summary"></p>
+
+                    <details class="difficulty-config-card" open>
+                        <summary>Difficulty Tuning (Dev)</summary>
+                        <div class="difficulty-config-grid">
+                            <label class="difficulty-config-field">Accuracy Threshold
+                                <input type="number" id="difficultyAccuracyThreshold" min="0" max="1" step="0.01">
+                            </label>
+                            <label class="difficulty-config-field">Score Points / Sec
+                                <input type="number" id="difficultyPointsPerSecond" min="0" max="1000" step="1">
+                            </label>
+                            <label class="difficulty-config-field">Combo Seconds
+                                <input type="number" id="difficultyComboSeconds" min="0.1" max="10" step="0.05">
+                            </label>
+                            <label class="difficulty-config-field">Max Combo
+                                <input type="number" id="difficultyMaxCombo" min="1" max="20" step="1">
+                            </label>
+                            <label class="difficulty-config-field">Feedback Interval (s)
+                                <input type="number" id="difficultyFeedbackInterval" min="0" max="5" step="0.05">
+                            </label>
+                            <label class="difficulty-config-field">GOOD Threshold
+                                <input type="number" id="difficultyFeedbackGood" min="0" max="1" step="0.01">
+                            </label>
+                            <label class="difficulty-config-field">GREAT Threshold
+                                <input type="number" id="difficultyFeedbackGreat" min="0" max="1" step="0.01">
+                            </label>
+                            <label class="difficulty-config-field">PERFECT Threshold
+                                <input type="number" id="difficultyFeedbackPerfect" min="0" max="1" step="0.01">
+                            </label>
+                            <label class="difficulty-config-field">Feedback Scale
+                                <input type="number" id="difficultyFeedbackScale" min="0.6" max="1.8" step="0.01">
+                            </label>
+                            <label class="difficulty-config-field">Feedback Anim (s)
+                                <input type="number" id="difficultyFeedbackAnimSec" min="0.2" max="2" step="0.01">
+                            </label>
+                            <label class="difficulty-config-field">Combo Pulse Scale
+                                <input type="number" id="difficultyComboPulseScale" min="1" max="1.6" step="0.01">
+                            </label>
+                        </div>
+                        <p class="difficulty-config-hint">
+                            Edits apply to the selected difficulty preset for this session so you can tune accuracy, scoring, combo and visual feedback quickly.
+                        </p>
+                        <button type="button" class="btn-secondary difficulty-reset-btn" id="resetDifficultyConfigBtn">Reset Selected Difficulty Values</button>
+                    </details>
+                </div>
+
                 <!--  Toggle's -->
                 <div class="toggle-container">
                     <span class="toggle-label" title="Toggle mirror input mode (recommended for webcam input)">Mirror Input:</span>
@@ -999,13 +1141,14 @@
                             <div class="stat-value" id="score">0</div>
                         </div>
                         <div class="stat">
-                            <div class="stat-label">Combo</div>
+                            <div class="stat-label">Combos</div>
                             <div class="stat-value" id="combo">0</div>
                         </div>
                         <div class="stat">
                             <div class="stat-label">Accuracy</div>
                             <div class="stat-value"><span id="accuracy">0%</span><span id="accuracyWarning" class="accuracy-warning"></span></div>
                         </div>
+                       
                     </div>
                 </div>
             </header>
@@ -1050,6 +1193,10 @@
                     <div class="stats-item">
                         <div class="stat-label">Time Danced</div>
                         <div class="stats-value" id="finalDuration">0.0s</div>
+                    </div>
+                    <div class="stats-item">
+                        <div class="stat-label">Difficulty</div>
+                        <div class="stats-value" id="finalDifficulty">Medium</div>
                     </div>
                 </div>
                 <div class="stats-actions">
