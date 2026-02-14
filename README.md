@@ -5,6 +5,11 @@ Create reference choreographies using videos and play along with your webcam or 
 
 **Status: Alpha version**
 
+Demo:
+
+[![Demo](https://img.youtube.com/vi/MMOTEbvUGqo/0.jpg)](https://www.youtube.com/watch?v=MMOTEbvUGqo)
+
+
 
 ## Usage
 
