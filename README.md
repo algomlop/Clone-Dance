@@ -59,13 +59,12 @@ OR
 - [ ] Improve visual and sound effects
 - [ ] Fine-tuning of the detection and scoring strategy (position vs angle). I think it's better only angles. Skip or simplify calibration if only angles are used.
 - [ ] Fine-tuning of the difficulty levels
-- [ ] Add speed control
 - [ ] Test in more devices (smartphones and other browsers)
 - [ ] Preview next pose
 - [ ] Local multiplayer (now is limited to one person in the reference and the live video)
 - [ ] in the last versions of Just Dance, reference videos have camera movements and zooms. I don't know if these could be used.
 - [ ] Choreography (JSON) editor
-- [ ] Finish this TODO list
+
 
 
 
