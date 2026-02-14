@@ -36,7 +36,7 @@ OR
    http://localhost:8000/visualizer.html
 ```
 
-### Play the game (not enjoyable yet)
+### Play the game
 
 Open in Chrome Desktop (only tested here):
 https://algomlop.github.io/Clone-Dance/clone_dance.html
