@@ -661,35 +661,59 @@
 
         .feedback {
             position: absolute;
-            top: 50%;
+            top: 46%;
             left: 50%;
             transform: translate(-50%, -50%);
             font-family: 'Orbitron', sans-serif;
-            font-size: 4rem;
+            font-size: clamp(3rem, 8vw, 6rem);
             font-weight: 900;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
             opacity: 0;
             pointer-events: none;
-            text-shadow: 0 0 30px currentColor;
+            z-index: 12;
+            text-shadow: 0 0 26px currentColor, 0 0 52px currentColor;
+            filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.2));
+        }
+
+        .feedback.feedback-good {
+            color: #00ff88;
+        }
+
+        .feedback.feedback-great {
+            color: #00d4ff;
+        }
+
+        .feedback.feedback-perfect {
+            color: #ffd84d;
         }
 
         .feedback.show {
-            animation: feedbackPop 0.6s ease-out;
+            animation: feedbackPop 0.72s cubic-bezier(0.2, 0.8, 0.2, 1);
         }
 
         @keyframes feedbackPop {
             0% {
                 opacity: 0;
-                transform: translate(-50%, -50%) scale(0.5);
+                transform: translate(-50%, -42%) scale(0.55);
+                filter: blur(2px);
             }
 
-            50% {
+            25% {
                 opacity: 1;
-                transform: translate(-50%, -50%) scale(1.2);
+                transform: translate(-50%, -50%) scale(1.08);
+                filter: blur(0px);
+            }
+
+            65% {
+                opacity: 1;
+                transform: translate(-50%, -53%) scale(1);
             }
 
             100% {
                 opacity: 0;
-                transform: translate(-50%, -50%) scale(1);
+                transform: translate(-50%, -60%) scale(0.92);
+                filter: blur(1px);
             }
         }
 
@@ -943,14 +967,14 @@
 
                 <!--  Toggle's -->
                 <div class="toggle-container">
-                    <span class="toggle-label">Mirror Input:</span>
-                    <div class="toggle-switch" id="mirrorToggle"></div>
+                    <span class="toggle-label" title="Toggle mirror input mode (recommended for webcam input)">Mirror Input:</span>
+                    <div class="toggle-switch" title="Toggle mirror input mode (recommended for webcam input)" id="mirrorToggle"></div>
                   
-                    <span class="toggle-label">Visual Effects:</span>
-                    <div class="toggle-switch" id="enable-effectsToggle"></div>
+                    <span class="toggle-label" title="Toggle visual effects (VFX) and sound effects (SFX)">VFX & SFX:</span>
+                    <div class="toggle-switch" title="Toggle visual effects (VFX) and sound effects (SFX)" id="enable-effectsToggle"></div>
 
-                    <span class="toggle-label">Debug:</span>
-                    <div class="toggle-switch" id="debugToggle"></div>
+                    <span class="toggle-label" title="Toggle debug mode to show which poses match">Debug:</span>
+                    <div class="toggle-switch" title="Toggle debug mode to show which poses match" id="debugToggle"></div>
       
                 </div>
 

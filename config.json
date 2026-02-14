@@ -56,6 +56,8 @@
     "_MIN_PLAYER_DETECTED_ANGLES_FOR_SCORING_COMMENT": "If player detected angles are below this value, accuracy and combo stay unchanged and no points are added.",
     "PLAYER_NO_POSE_WARNING_DELAY_SEC": 2.0,
     "_PLAYER_NO_POSE_WARNING_DELAY_SEC_COMMENT": "Seconds with too few player angles before showing the warning next to accuracy.",
+    "PERFORMANCE_FEEDBACK_INTERVAL_SEC": 0.8,
+    "_PERFORMANCE_FEEDBACK_INTERVAL_SEC_COMMENT": "Minimum seconds between GOOD/GREAT/PERFECT feedback popups and sounds.",
     "COMBO_THRESHOLD": 0.6,
     "COMBO_MULTIPLIER": 0.1,
     "BASE_POINTS": 10,

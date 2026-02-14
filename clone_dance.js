@@ -34,6 +34,52 @@ let isCountdownActive = false;
 let statsMaxCombo = 0;
 let statsAverageAccuracyAccum = 0;
 let statsTrackedTimeSec = 0;
+let lastPerformanceTierKey = null;
+let lastPerformanceFeedbackTimeMs = 0;
+let rewardSoundsInitialized = false;
+let rewardSoundPlayers = {};
+const rewardSoundFailures = new Set();
+
+const FEEDBACK_TIER_CLASSES = ['feedback-good', 'feedback-great', 'feedback-perfect'];
+const PERFORMANCE_FEEDBACK_TIERS = {
+    good: {
+        key: 'good',
+        text: 'GOOD',
+        color: '#00ff88',
+        cssClass: 'feedback-good',
+        soundKey: 'feedbackGood'
+    },
+    great: {
+        key: 'great',
+        text: 'GREAT',
+        color: '#00d4ff',
+        cssClass: 'feedback-great',
+        soundKey: 'feedbackGreat'
+    },
+    perfect: {
+        key: 'perfect',
+        text: 'PERFECT',
+        color: '#ffd84d',
+        cssClass: 'feedback-perfect',
+        soundKey: 'feedbackPerfect'
+    }
+};
+
+const REWARD_SOUND_FILES = {
+    feedbackGood: 'assets/sfx/feedback_good.mp3',
+    feedbackGreat: 'assets/sfx/feedback_great.mp3',
+    feedbackPerfect: 'assets/sfx/feedback_perfect.mp3',
+    comboUp: 'assets/sfx/combo_up.mp3',
+    comboMax: 'assets/sfx/combo_max.mp3'
+};
+
+const REWARD_SOUND_VOLUMES = {
+    feedbackGood: 0.45,
+    feedbackGreat: 0.5,
+    feedbackPerfect: 0.6,
+    comboUp: 0.55,
+    comboMax: 0.7
+};
 
 let gameEffectsLayerEl = null;
 const effectsState = window.cloneDanceEffectsState || {
@@ -198,6 +244,118 @@ function clamp01(value) {
     return Math.max(0, Math.min(1, value));
 }
 
+function initializeRewardSounds() {
+    if (rewardSoundsInitialized) return;
+
+    rewardSoundsInitialized = true;
+    rewardSoundPlayers = {};
+
+    for (const [soundKey, src] of Object.entries(REWARD_SOUND_FILES)) {
+        const audio = new Audio(src);
+        audio.preload = 'auto';
+        audio.volume = REWARD_SOUND_VOLUMES[soundKey] ?? 0.5;
+        audio.addEventListener('error', () => {
+            rewardSoundFailures.add(soundKey);
+        }, { once: true });
+        rewardSoundPlayers[soundKey] = audio;
+    }
+}
+
+function playRewardSound(soundKey) {
+    const audio = rewardSoundPlayers[soundKey];
+    if (!audio || rewardSoundFailures.has(soundKey)) return;
+
+    try {
+        audio.currentTime = 0;
+        const playPromise = audio.play();
+        if (playPromise && typeof playPromise.catch === 'function') {
+            playPromise.catch(() => { });
+        }
+    } catch (error) {
+        // Ignore playback failures (e.g. missing interaction or missing file)
+    }
+}
+
+function resetPerformanceFeedbackState(options = {}) {
+    const resetTimer = options.resetTimer === true;
+    lastPerformanceTierKey = null;
+    if (resetTimer) {
+        lastPerformanceFeedbackTimeMs = 0;
+    }
+}
+
+function clearFeedbackDisplay() {
+    const feedback = document.getElementById('feedback');
+    if (!feedback) return;
+
+    feedback.textContent = '';
+    feedback.style.removeProperty('color');
+    feedback.classList.remove('show');
+    feedback.classList.remove(...FEEDBACK_TIER_CLASSES);
+}
+
+function getPerformanceTierThresholds(accuracyThreshold) {
+    const goodThreshold = clamp01(accuracyThreshold);
+    const greatThreshold = clamp01(Math.max(goodThreshold + 0.1, 0.8));
+    const perfectThreshold = clamp01(Math.max(greatThreshold + 0.08, 0.9));
+
+    return { goodThreshold, greatThreshold, perfectThreshold };
+}
+
+function getPerformanceTier(accuracy, accuracyThreshold) {
+    if (!Number.isFinite(accuracy)) return null;
+
+    const { goodThreshold, greatThreshold, perfectThreshold } = getPerformanceTierThresholds(accuracyThreshold);
+    if (accuracy >= perfectThreshold) return PERFORMANCE_FEEDBACK_TIERS.perfect;
+    if (accuracy >= greatThreshold) return PERFORMANCE_FEEDBACK_TIERS.great;
+    if (accuracy >= goodThreshold) return PERFORMANCE_FEEDBACK_TIERS.good;
+    return null;
+}
+
+function getPerformanceFeedbackCooldownMs() {
+    const intervalSec = Number(GameConfig?.PERFORMANCE_FEEDBACK_INTERVAL_SEC);
+    if (Number.isFinite(intervalSec) && intervalSec >= 0) {
+        return intervalSec * 1000;
+    }
+
+    const legacyCooldownMs = Number(GameConfig?.PERFORMANCE_FEEDBACK_COOLDOWN_MS);
+    if (Number.isFinite(legacyCooldownMs) && legacyCooldownMs >= 0) {
+        return legacyCooldownMs;
+    }
+
+    return 500;
+}
+
+function maybeShowPerformanceFeedback(accuracy, accuracyThreshold) {
+    const tier = getPerformanceTier(accuracy, accuracyThreshold);
+    if (!tier) {
+        resetPerformanceFeedbackState();
+        return;
+    }
+
+    const nowMs = performance.now();
+    const cooldownMs = getPerformanceFeedbackCooldownMs();
+    if (nowMs - lastPerformanceFeedbackTimeMs < cooldownMs) {
+        return;
+    }
+
+    showFeedback(tier.text, tier.color, tier.cssClass);
+    playRewardSound(tier.soundKey);
+    lastPerformanceTierKey = tier.key;
+    lastPerformanceFeedbackTimeMs = nowMs;
+}
+
+function handleComboReward(previousCombo, newCombo, maxCombo) {
+    if (newCombo <= previousCombo || newCombo <= 0) return;
+
+    if (newCombo >= maxCombo) {
+        playRewardSound('comboMax');
+        return;
+    }
+
+    playRewardSound('comboUp');
+}
+
 function setGameControlsDisabled(disabled) {
     for (const id of ['playPauseBtn', 'resetBtn', 'recalibrateBtn']) {
         const el = document.getElementById(id);
@@ -276,6 +434,8 @@ function startSongPlaybackFromBeginning() {
     goodTimeAccumSec = 0;
     goodStreakSec = 0;
     combo = 0;
+    resetPerformanceFeedbackState({ resetTimer: true });
+    clearFeedbackDisplay();
     resetNoPoseState();
     updateComboIndicator();
 
@@ -597,6 +757,7 @@ async function initGame() {
 
     try {
         await getGameConfig();
+        initializeRewardSounds();
         console.log("Loading JSON...");
         const jsonText = await jsonFile.text();
         referenceData = JSON.parse(jsonText);
@@ -834,7 +995,7 @@ function startCalibration() {
     calibrationTime = 0;
 
     document.getElementById('calibrationScreen').classList.add('active');
-    document.getElementById('calibrationStatus').textContent = 'Loading pose... Don\'t skip yet';
+    document.getElementById('calibrationStatus').textContent = 'Loading poses... Don\'t skip yet';
     document.getElementById('calibrationProgress').style.width = '0%';
     syncEffectsState();
 }
@@ -1669,17 +1830,21 @@ function updateScore(angleAccuracy, nowTimeSec, options = {}) {
         }
 
         const newCombo = Math.min(maxCombo, Math.floor(goodStreakSec / comboSeconds));
+        const previousCombo = combo;
         if (newCombo !== combo) {
             combo = newCombo;
             updateComboIndicator();
+            handleComboReward(previousCombo, combo, maxCombo);
         } else if (combo > 0) {
             updateComboIndicator();
         }
+        maybeShowPerformanceFeedback(currentAccuracy, accuracyThreshold);
         statsMaxCombo = Math.max(statsMaxCombo, combo);
     } else {
         goodTimeAccumSec = 0;
         goodStreakSec = 0;
         combo = 0;
+        resetPerformanceFeedbackState();
         updateComboIndicator();
     }
 
@@ -1707,10 +1872,21 @@ function updateUI() {
 /**
  * Show feedback text
  */
-function showFeedback(text, color) {
+function showFeedback(text, color, feedbackClass = '') {
     const feedback = document.getElementById('feedback');
+    if (!feedback) return;
+
+    feedback.classList.remove(...FEEDBACK_TIER_CLASSES);
+    if (feedbackClass) {
+        feedback.classList.add(feedbackClass);
+    }
+
     feedback.textContent = text;
-    feedback.style.color = color;
+    if (color) {
+        feedback.style.color = color;
+    } else {
+        feedback.style.removeProperty('color');
+    }
     feedback.classList.remove('show');
     void feedback.offsetWidth;
     feedback.classList.add('show');
@@ -1791,6 +1967,8 @@ function resetGame() {
     statsMaxCombo = 0;
     statsAverageAccuracyAccum = 0;
     statsTrackedTimeSec = 0;
+    resetPerformanceFeedbackState({ resetTimer: true });
+    clearFeedbackDisplay();
     resetNoPoseState();
 
     if (videoElement) {
