@@ -9,6 +9,7 @@ Demo:
 
 [![Demo](https://img.youtube.com/vi/MMOTEbvUGqo/0.jpg)](https://www.youtube.com/watch?v=MMOTEbvUGqo)
 
+Copyright / takedown notice — If this repository on GitHub contains material you own, please contact me directly or open an issue with your claim. I will cooperate and remove the content immediately upon request.
 
 
 ## Usage
@@ -62,7 +63,6 @@ OR
 - [ ] Test in more devices (smartphones and other browsers)
 - [ ] Preview next pose
 - [ ] Local multiplayer (now is limited to one person in the reference and the live video)
-- [ ] in the last versions of Just Dance, reference videos have camera movements and zooms. I don't know if these could be used.
 - [ ] Choreography (JSON) editor
 
 
