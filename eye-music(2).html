@@ -883,25 +883,50 @@ async function requestCamera(){
     await startWebGazer();
   } catch(err){
     console.error(err);
-    let msg='No se pudo acceder a la cámara.';
+    let msg = 'No se pudo acceder a la cámara.';
     if(err.name==='NotAllowedError'||err.name==='PermissionDeniedError')
       msg='Permiso denegado. Pulsa el 🔒 en la barra de direcciones y activa la cámara.';
     else if(err.name==='NotFoundError')
       msg='No se detectó cámara. Conecta una webcam e inténtalo de nuevo.';
     else if(err.name==='NotReadableError')
       msg='La cámara está siendo usada por otra app. Ciérrala e inténtalo de nuevo.';
-    else msg=err.message||msg;
-    errEl.textContent=msg; errEl.classList.add('visible');
+    else if(err.message && err.message.includes('WebGazer'))
+      msg = err.message + ' Puedes usar el modo ratón para probar la app.';
+    else
+      msg = err.message || msg;
+    errEl.textContent = msg;
+    errEl.classList.add('visible');
+    showScreen('screen-permission'); // go back so user can choose mouse mode
   }
 }
 
+const WEBGAZER_URLS = [
+  'https://webgazer.cs.brown.edu/webgazer.js',
+  'https://cdn.jsdelivr.net/npm/webgazer@2.1.0/src/index.js',
+  'https://unpkg.com/webgazer@2.0.1/src/index.js',
+];
+
 function loadWebGazer(){
-  return new Promise((res,rej)=>{
-    if(window.webgazer){res();return;}
-    const s=document.createElement('script');
-    s.src='https://cdnjs.cloudflare.com/ajax/libs/webgazer/2.0.1/webgazer.min.js';
-    s.onload=()=>{wgLoaded=true;res();};
-    s.onerror=()=>rej(new Error('No se pudo cargar WebGazer'));
+  return new Promise(async (res, rej) => {
+    if (window.webgazer) { res(); return; }
+    for (const url of WEBGAZER_URLS) {
+      try {
+        await loadScript(url);
+        if (window.webgazer) { wgLoaded = true; res(); return; }
+      } catch(e) {
+        console.warn('WebGazer CDN failed, trying next:', url);
+      }
+    }
+    rej(new Error('No se pudo cargar WebGazer desde ninguna fuente. Comprueba tu conexión a internet.'));
+  });
+}
+
+function loadScript(url){
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = url;
+    s.onload = res;
+    s.onerror = rej;
     document.head.appendChild(s);
   });
 }
