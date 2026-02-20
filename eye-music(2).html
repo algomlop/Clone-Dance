@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OcuSonics — Música con tus ojos</title>
+<!-- WebGazer must be loaded statically so MediaPipe resolves from the same origin -->
+<script src="https://webgazer.cs.brown.edu/webgazer.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@300;400;700;800&display=swap');
 
@@ -900,33 +902,18 @@ async function requestCamera(){
   }
 }
 
-const WEBGAZER_URLS = [
-  'https://webgazer.cs.brown.edu/webgazer.js',
-  'https://cdn.jsdelivr.net/npm/webgazer@2.1.0/src/index.js',
-  'https://unpkg.com/webgazer@2.0.1/src/index.js',
-];
-
 function loadWebGazer(){
-  return new Promise(async (res, rej) => {
-    if (window.webgazer) { res(); return; }
-    for (const url of WEBGAZER_URLS) {
-      try {
-        await loadScript(url);
-        if (window.webgazer) { wgLoaded = true; res(); return; }
-      } catch(e) {
-        console.warn('WebGazer CDN failed, trying next:', url);
-      }
-    }
-    rej(new Error('No se pudo cargar WebGazer desde ninguna fuente. Comprueba tu conexión a internet.'));
+  return new Promise((res, rej) => {
+    if (window.webgazer) { wgLoaded = true; res(); return; }
+    // Should never reach here since it's in <head>, but just in case:
+    rej(new Error('WebGazer no está disponible. Comprueba tu conexión a internet y recarga la página.'));
   });
 }
 
 function loadScript(url){
   return new Promise((res, rej) => {
     const s = document.createElement('script');
-    s.src = url;
-    s.onload = res;
-    s.onerror = rej;
+    s.src = url; s.onload = res; s.onerror = rej;
     document.head.appendChild(s);
   });
 }
@@ -934,18 +921,27 @@ function loadScript(url){
 function startWebGazer(){
   return new Promise((res,rej)=>{
     try{
+      // Disable localStorage to avoid stale calibration data conflicts
+      webgazer.params.saveDataAcrossSessions = false;
+
       webgazer
         .setRegression('ridge')
+        .setTracker('TFFaceMesh')
         .setGazeListener((data)=>{
-          if(data&&calibDone) onGaze(data.x,data.y);
+          if(data && calibDone) onGaze(data.x, data.y);
         });
       webgazer.showVideoPreview(true);
       webgazer.showPredictionPoints(false);
-      webgazer.begin().then(()=>{
-        wgActive=true;
-        styleWebcam(); // start polling immediately
-        res();
-      }).catch(rej);
+      webgazer.begin()
+        .then(()=>{
+          wgActive=true;
+          styleWebcam();
+          res();
+        })
+        .catch(e => {
+          console.error('WebGazer begin() failed:', e);
+          rej(e);
+        });
     }catch(e){rej(e);}
   });
 }
