@@ -595,7 +595,7 @@ body::before {
   <!-- RIGHT: dots -->
   <div class="calib-right">
     <h2 class="calib-title">Calibración</h2>
-    <p class="calib-desc">Mira fijamente el punto brillante (o haz clic en él). Repite para los 9 puntos.</p>
+    <p class="calib-desc">Mira fijamente el punto brillante y mantén la mirada quieta ~1.5 s. Avanzará solo. También puedes hacer clic.</p>
     <div class="calib-area" id="calib-area"></div>
     <div class="progress-bar-wrap"><div class="progress-bar-fill" id="prog-fill"></div></div>
     <p class="calib-progress" id="calib-progress">Punto 1 de 9</p>
@@ -905,19 +905,23 @@ function onFaceResults(results){
   if(!detected){ lastRaw = null; return; }
 
   const lm = results.multiFaceLandmarks[0];
-  // Iris centers: lm[468]=left iris, lm[473]=right iris (normalized 0-1 in video frame)
+  // Iris centers: lm[468]=left iris, lm[473]=right iris (normalized 0–1 in video frame)
+  // Note: video is mirrored (scaleX(-1)) so we flip x: realX = 1 - x
   const li = lm[468], ri = lm[473];
-  const gx = (li.x + ri.x) / 2;
-  const gy = (li.y + ri.y) / 2;
-  lastRaw = {gx, gy};
+  const rawGx = 1 - (li.x + ri.x) / 2;   // flip to match mirrored video
+  const rawGy =     (li.y + ri.y) / 2;
+  lastRaw = {gx: rawGx, gy: rawGy};
 
-  // Accumulate samples while user is dwelling on a calibration dot
-  if(calibDone === false && calibSamples.length < 60) calibSamples.push({gx,gy});
+  // ── Calibration dwell ─────────────────────────
+  if(!calibDone){
+    irisCalibTick(rawGx, rawGy);
+    return;
+  }
 
-  // Live gaze once calibrated
+  // ── Live gaze (post-calibration) ─────────────
   if(calibDone && gazeModel){
-    const rx = gazeModel.ax + gazeModel.bx*gx + gazeModel.cx*gy;
-    const ry = gazeModel.ay + gazeModel.by*gx + gazeModel.cy*gy;
+    const rx = gazeModel.ax + gazeModel.bx*rawGx + gazeModel.cx*rawGy;
+    const ry = gazeModel.ay + gazeModel.by*rawGx + gazeModel.cy*rawGy;
     smoothX = smoothX*SMOOTH + rx*(1-SMOOTH);
     smoothY = smoothY*SMOOTH + ry*(1-SMOOTH);
     onGaze(smoothX, smoothY);
@@ -932,7 +936,110 @@ function updateFaceStatus(detected){
   text.textContent = detected ? '✓ Cara detectada — puedes calibrar' : 'Buscando cara…';
 }
 
-// ── Least-squares linear regression ─────────────
+// ── Iris-dwell calibration ────────────────────
+// Called every frame during calibration with raw iris coords (0-1).
+// Counts stable frames while user looks at the active dot,
+// then auto-advances without needing a click.
+
+const CALIB_DWELL_FRAMES = 45;   // ~1.5s at 30fps
+const CALIB_STABLE_THRESH = 0.012; // iris must not move more than this
+let calibFrameCount = 0;
+let calibLastGx = null, calibLastGy = null;
+
+// Visual ring on the active calib dot
+let calibDotTimer = null;
+
+function irisCalibTick(rawGx, rawGy){
+  const dots = document.querySelectorAll('.calib-dot');
+  const activeDot = dots[calibIdx];
+  if(!activeDot) return;
+
+  // Check iris stability (user must hold gaze still)
+  const moved = calibLastGx !== null
+    ? Math.hypot(rawGx - calibLastGx, rawGy - calibLastGy)
+    : 999;
+  calibLastGx = rawGx; calibLastGy = rawGy;
+
+  if(moved > CALIB_STABLE_THRESH){
+    // Moved too much — reset counter & visual ring
+    calibFrameCount = 0;
+    resetCalibRing(activeDot);
+    calibSamples = [];
+    return;
+  }
+
+  // Stable frame
+  calibFrameCount++;
+  calibSamples.push({gx: rawGx, gy: rawGy});
+
+  // Animate progress ring on the dot
+  const pct = calibFrameCount / CALIB_DWELL_FRAMES;
+  updateCalibRing(activeDot, pct);
+
+  if(calibFrameCount >= CALIB_DWELL_FRAMES){
+    calibFrameCount = 0;
+    resetCalibRing(activeDot);
+    confirmCalibPoint(activeDot);
+  }
+}
+
+function updateCalibRing(dot, pct){
+  let ring = dot.querySelector('.calib-ring');
+  if(!ring){
+    ring = document.createElementNS('http://www.w3.org/2000/svg','svg');
+    ring.classList.add('calib-ring');
+    ring.setAttribute('viewBox','0 0 40 40');
+    ring.style.cssText='position:absolute;inset:-3px;width:calc(100% + 6px);height:calc(100% + 6px);pointer-events:none;';
+    const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c.setAttribute('cx','20'); c.setAttribute('cy','20'); c.setAttribute('r','17');
+    c.setAttribute('fill','none'); c.setAttribute('stroke','#00f5c4'); c.setAttribute('stroke-width','3');
+    const circ = 2*Math.PI*17;
+    c.setAttribute('stroke-dasharray', circ);
+    c.setAttribute('stroke-dashoffset', circ);
+    c.setAttribute('transform','rotate(-90 20 20)');
+    c.style.transition='stroke-dashoffset 0.05s linear';
+    ring.appendChild(c); dot.appendChild(ring);
+  }
+  const c = ring.querySelector('circle');
+  const circ = 2*Math.PI*17;
+  c.setAttribute('stroke-dashoffset', circ*(1-pct));
+}
+
+function resetCalibRing(dot){
+  const ring = dot.querySelector('.calib-ring');
+  if(ring) ring.remove();
+}
+
+function confirmCalibPoint(dot){
+  const idx = parseInt(dot.dataset.idx);
+  if(idx !== calibIdx) return;
+
+  // Store calibration sample
+  if(calibSamples.length > 0){
+    const avgGx = calibSamples.reduce((s,p)=>s+p.gx,0)/calibSamples.length;
+    const avgGy = calibSamples.reduce((s,p)=>s+p.gy,0)/calibSamples.length;
+    const r = dot.getBoundingClientRect();
+    calibData.push({gx:avgGx, gy:avgGy, sx:r.left+r.width/2, sy:r.top+r.height/2});
+  }
+  calibSamples = [];
+  calibLastGx = null; calibLastGy = null;
+
+  dot.classList.remove('active'); dot.classList.add('done');
+  calibIdx++;
+  updateCalibProg();
+
+  if(calibIdx >= CALIB_PTS.length){
+    if(calibData.length >= 4){
+      gazeModel = fitModel(calibData);
+      calibDone = true;
+    }
+    setTimeout(launchApp, 500);
+  } else {
+    document.querySelectorAll('.calib-dot')[calibIdx]?.classList.add('active');
+  }
+}
+
+
 // Fits: sx = ax + bx·gx + cx·gy  (and same for sy)
 function fitModel(pts){
   let s1=0,sGx=0,sGy=0,sGx2=0,sGy2=0,sXY=0;
@@ -992,32 +1099,15 @@ function buildCalib(){
 }
 
 function calibratePoint(dot){
-  const idx=parseInt(dot.dataset.idx);
-  if(idx!==calibIdx) return;
-
-  // Average iris samples collected while user gazed at this dot
-  if(calibSamples.length > 0){
-    const avgGx=calibSamples.reduce((s,p)=>s+p.gx,0)/calibSamples.length;
-    const avgGy=calibSamples.reduce((s,p)=>s+p.gy,0)/calibSamples.length;
-    const r=dot.getBoundingClientRect();
-    calibData.push({gx:avgGx, gy:avgGy, sx:r.left+r.width/2, sy:r.top+r.height/2});
+  // Click fallback: snapshot whatever iris samples we have and advance
+  if(parseInt(dot.dataset.idx) !== calibIdx) return;
+  // If no iris data yet (mouse mode), just record dot center with fake iris
+  if(calibSamples.length === 0 && lastRaw){
+    calibSamples.push(lastRaw);
   }
-  calibSamples=[]; // reset for next dot
-
-  dot.classList.remove('active'); dot.classList.add('done');
-  calibIdx++;
-  updateCalibProg();
-
-  if(calibIdx>=CALIB_PTS.length){
-    if(calibData.length >= 4){
-      gazeModel=fitModel(calibData);
-      calibDone=true;
-    }
-    setTimeout(launchApp, 500);
-  } else {
-    document.querySelectorAll('.calib-dot')[calibIdx]?.classList.add('active');
-    calibSamples=[];  // fresh slate
-  }
+  calibFrameCount = 0;
+  resetCalibRing(dot);
+  confirmCalibPoint(dot);
 }
 
 function updateCalibProg(){
