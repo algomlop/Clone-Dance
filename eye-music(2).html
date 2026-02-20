@@ -4,8 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OcuSonics — Música con tus ojos</title>
-<!-- WebGazer must be loaded statically so MediaPipe resolves from the same origin -->
-<script src="https://webgazer.cs.brown.edu/webgazer.js"></script>
+<!-- MediaPipe FaceMesh — official CDN, locateFile pattern handles WASM assets correctly -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4/face_mesh.js" crossorigin="anonymous"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@300;400;700;800&display=swap');
 
@@ -394,38 +395,7 @@ body::before {
   font-size: 0.8rem; color: var(--muted);
 }
 
-/* WebGazer video goes INTO webcam-slot — override its absolute positioning */
-#webgazerVideoContainer {
-  position: absolute !important;
-  top: 0 !important; left: 0 !important;
-  width: 100% !important; height: 100% !important;
-  border-radius: 0 !important;
-  overflow: hidden !important;
-  border: none !important;
-  z-index: 2 !important;
-  opacity: 1 !important;
-  transform: scaleX(-1) !important; /* mirror like a selfie */
-}
-#webgazerVideoContainer video {
-  width: 100% !important; height: 100% !important;
-  object-fit: cover !important;
-}
-#webgazerFaceOverlay { display: block !important; transform: scaleX(-1) !important; }
-#webgazerFaceFeedbackBox { display: none !important; }
-
-/* In-app: small corner webcam */
-body.app-mode #webgazerVideoContainer {
-  position: fixed !important;
-  top: auto !important; left: auto !important;
-  bottom: 62px !important; right: 14px !important;
-  width: 140px !important; height: 105px !important;
-  border-radius: 10px !important;
-  border: 1px solid rgba(0,245,196,0.22) !important;
-  z-index: 1000 !important;
-  opacity: 0.75 !important;
-  transform: scaleX(-1) !important;
-}
-body.app-mode #webgazerFaceOverlay { display: none !important; }
+/* video corner (app mode) handled inline */
 
 /* ── App ─────────────────────────────────────── */
 #screen-app {
@@ -844,7 +814,7 @@ function activateTarget(el){
   if(saved.classList.contains('pad')){
     const pad=PADS.find(p=>p.id===saved.dataset.padId);
     if(pad){triggerPad(pad);flashPad(saved,pad);}
-  } else if(saved.dataset.action==='camera') goToPermission();
+  } else if(saved.dataset.action==='camera') { showScreen('screen-permission'); }
   else if(saved.dataset.action==='mouse')  startMouseMode();
   else if(saved.dataset.action==='grant')  requestCamera();
   else if(saved.dataset.action==='skip')   startMouseMode();
@@ -865,141 +835,142 @@ function makeRipple(x,y,color){
 }
 
 // ═══════════════════════════════════════════════
-// CAMERA + WEBGAZER
+// MEDIAPIPE GAZE TRACKING
 // ═══════════════════════════════════════════════
-let wgLoaded=false, wgActive=false, calibDone=false;
-
-function goToPermission(){ showScreen('screen-permission'); }
+let mpFaceMesh = null, mpCamUtil = null, videoEl = null;
+let calibDone = false;
+let lastRaw = null;       // {gx,gy} normalized iris pos (0-1)
+let calibSamples = [];    // iris samples collected while user dwells on a dot
+let calibData = [];       // [{gx,gy,sx,sy}] finalized points
+let gazeModel = null;     // {ax,bx,cx,ay,by,cy} linear regression coeffs
+let smoothX = 0, smoothY = 0;
+const SMOOTH = 0.72;
 
 async function requestCamera(){
-  const errEl=document.getElementById('perm-error');
+  const errEl = document.getElementById('perm-error');
   errEl.classList.remove('visible');
   try {
-    // This call triggers the browser's permission dialog
-    const stream=await navigator.mediaDevices.getUserMedia({video:true,audio:false});
-    stream.getTracks().forEach(t=>t.stop()); // release, WebGazer will re-open
+    // Step 1: explicit getUserMedia so browser shows permission dialog
+    const s = await navigator.mediaDevices.getUserMedia({video:true,audio:false});
+    s.getTracks().forEach(t=>t.stop());
 
     showScreen('screen-calibration');
     buildCalib();
-    await loadWebGazer();
-    await startWebGazer();
+    await initMediaPipe();
   } catch(err){
     console.error(err);
-    let msg = 'No se pudo acceder a la cámara.';
-    if(err.name==='NotAllowedError'||err.name==='PermissionDeniedError')
-      msg='Permiso denegado. Pulsa el 🔒 en la barra de direcciones y activa la cámara.';
-    else if(err.name==='NotFoundError')
-      msg='No se detectó cámara. Conecta una webcam e inténtalo de nuevo.';
-    else if(err.name==='NotReadableError')
-      msg='La cámara está siendo usada por otra app. Ciérrala e inténtalo de nuevo.';
-    else if(err.message && err.message.includes('WebGazer'))
-      msg = err.message + ' Puedes usar el modo ratón para probar la app.';
-    else
-      msg = err.message || msg;
+    let msg = 'Error desconocido al acceder a la cámara.';
+    if(err.name==='NotAllowedError')  msg='Permiso denegado. Haz clic en el 🔒 de la barra de direcciones y activa la cámara.';
+    else if(err.name==='NotFoundError')   msg='No se detectó ninguna cámara. Conecta una webcam e inténtalo.';
+    else if(err.name==='NotReadableError')msg='La cámara está usada por otra aplicación. Ciérrala e inténtalo.';
+    else msg = err.message || msg;
     errEl.textContent = msg;
     errEl.classList.add('visible');
-    showScreen('screen-permission'); // go back so user can choose mouse mode
   }
 }
 
-function loadWebGazer(){
-  return new Promise((res, rej) => {
-    if (window.webgazer) { wgLoaded = true; res(); return; }
-    // Should never reach here since it's in <head>, but just in case:
-    rej(new Error('WebGazer no está disponible. Comprueba tu conexión a internet y recarga la página.'));
-  });
-}
-
-function loadScript(url){
-  return new Promise((res, rej) => {
-    const s = document.createElement('script');
-    s.src = url; s.onload = res; s.onerror = rej;
-    document.head.appendChild(s);
-  });
-}
-
-function startWebGazer(){
-  return new Promise((res,rej)=>{
-    try{
-      // Disable localStorage to avoid stale calibration data conflicts
-      webgazer.params.saveDataAcrossSessions = false;
-
-      webgazer
-        .setRegression('ridge')
-        .setTracker('TFFaceMesh')
-        .setGazeListener((data)=>{
-          if(data && calibDone) onGaze(data.x, data.y);
-        });
-      webgazer.showVideoPreview(true);
-      webgazer.showPredictionPoints(false);
-      webgazer.begin()
-        .then(()=>{
-          wgActive=true;
-          styleWebcam();
-          res();
-        })
-        .catch(e => {
-          console.error('WebGazer begin() failed:', e);
-          rej(e);
-        });
-    }catch(e){rej(e);}
-  });
-}
-
-function styleWebcam(){
+async function initMediaPipe(){
+  // Create <video> and place it in our webcam panel
+  videoEl = document.createElement('video');
+  videoEl.setAttribute('playsinline','');
+  videoEl.style.cssText='width:100%;height:100%;object-fit:cover;transform:scaleX(-1);border-radius:14px;';
   const slot = document.getElementById('webcam-slot');
   const placeholder = document.getElementById('webcam-placeholder');
+  if(slot) slot.appendChild(videoEl);
 
-  // Poll until WebGazer injects its video container
-  const tryMove = () => {
-    const v = document.getElementById('webgazerVideoContainer');
-    if (v && slot) {
-      slot.appendChild(v);          // move INTO our panel
-      if (placeholder) placeholder.classList.add('hidden');
-      startFaceDetection();
-    } else {
-      setTimeout(tryMove, 300);
-    }
-  };
-  tryMove();
+  // FaceMesh — locateFile directs WASM/binary fetches to the same jsDelivr version
+  mpFaceMesh = new FaceMesh({
+    locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4/${file}`
+  });
+  mpFaceMesh.setOptions({
+    maxNumFaces: 1,
+    refineLandmarks: true,   // enables iris landmarks 468-477
+    minDetectionConfidence: 0.5,
+    minTrackingConfidence: 0.5,
+  });
+  mpFaceMesh.onResults(onFaceResults);
+
+  // Camera util — wraps getUserMedia + requestAnimationFrame
+  mpCamUtil = new Camera(videoEl, {
+    onFrame: async () => { if(mpFaceMesh) await mpFaceMesh.send({image: videoEl}); },
+    width: 640, height: 480,
+  });
+  await mpCamUtil.start();
+  if(placeholder) placeholder.classList.add('hidden');
 }
 
-// Poll for face detection using webgazer's face data
-let faceInterval = null;
-function startFaceDetection(){
-  if (faceInterval) return;
-  const dot  = document.getElementById('face-dot');
-  const text = document.getElementById('face-status-text');
+function onFaceResults(results){
+  const detected = results.multiFaceLandmarks?.length > 0;
+  updateFaceStatus(detected);
+  if(!detected){ lastRaw = null; return; }
+
+  const lm = results.multiFaceLandmarks[0];
+  // Iris centers: lm[468]=left iris, lm[473]=right iris (normalized 0-1 in video frame)
+  const li = lm[468], ri = lm[473];
+  const gx = (li.x + ri.x) / 2;
+  const gy = (li.y + ri.y) / 2;
+  lastRaw = {gx, gy};
+
+  // Accumulate samples while user is dwelling on a calibration dot
+  if(calibDone === false && calibSamples.length < 60) calibSamples.push({gx,gy});
+
+  // Live gaze once calibrated
+  if(calibDone && gazeModel){
+    const rx = gazeModel.ax + gazeModel.bx*gx + gazeModel.cx*gy;
+    const ry = gazeModel.ay + gazeModel.by*gx + gazeModel.cy*gy;
+    smoothX = smoothX*SMOOTH + rx*(1-SMOOTH);
+    smoothY = smoothY*SMOOTH + ry*(1-SMOOTH);
+    onGaze(smoothX, smoothY);
+  }
+}
+
+function updateFaceStatus(detected){
   const box  = document.getElementById('face-status');
-
-  faceInterval = setInterval(async () => {
-    if (!window.webgazer) return;
-    try {
-      const tracker = webgazer.getTracker();
-      // Check if webgazer is getting predictions by testing the current estimate
-      const pred = await webgazer.getCurrentPrediction();
-      const detected = pred !== null;
-      if (dot && text && box) {
-        if (detected) {
-          box.classList.add('detected');
-          text.textContent = '✓ Cara detectada — listo para calibrar';
-        } else {
-          box.classList.remove('detected');
-          text.textContent = 'Buscando cara…';
-        }
-      }
-    } catch(e) { /* ignore */ }
-  }, 800);
+  const text = document.getElementById('face-status-text');
+  if(!box) return;
+  box.classList.toggle('detected', detected);
+  text.textContent = detected ? '✓ Cara detectada — puedes calibrar' : 'Buscando cara…';
 }
 
-function stopFaceDetection(){
-  if (faceInterval) { clearInterval(faceInterval); faceInterval = null; }
+// ── Least-squares linear regression ─────────────
+// Fits: sx = ax + bx·gx + cx·gy  (and same for sy)
+function fitModel(pts){
+  let s1=0,sGx=0,sGy=0,sGx2=0,sGy2=0,sXY=0;
+  let sSx=0,sGxSx=0,sGySx=0,sSy=0,sGxSy=0,sGySy=0;
+  for(const p of pts){
+    s1++;sGx+=p.gx;sGy+=p.gy;
+    sGx2+=p.gx*p.gx;sGy2+=p.gy*p.gy;sXY+=p.gx*p.gy;
+    sSx+=p.sx;sGxSx+=p.gx*p.sx;sGySx+=p.gy*p.sx;
+    sSy+=p.sy;sGxSy+=p.gx*p.sy;sGySy+=p.gy*p.sy;
+  }
+  const A=[[s1,sGx,sGy],[sGx,sGx2,sXY],[sGy,sXY,sGy2]];
+  const [ax,bx,cx]=solve3(A,[sSx,sGxSx,sGySx]);
+  const [ay,by,cy]=solve3(A,[sSy,sGxSy,sGySy]);
+  return {ax,bx,cx,ay,by,cy};
+}
+function solve3(A,b){
+  const M=A.map((r,i)=>[...r,b[i]]);
+  for(let c=0;c<3;c++){
+    let mr=c;
+    for(let r=c+1;r<3;r++) if(Math.abs(M[r][c])>Math.abs(M[mr][c])) mr=r;
+    [M[c],M[mr]]=[M[mr],M[c]];
+    for(let r=c+1;r<3;r++){
+      const f=M[r][c]/M[c][c];
+      for(let j=c;j<=3;j++) M[r][j]-=f*M[c][j];
+    }
+  }
+  const x=[0,0,0];
+  for(let i=2;i>=0;i--){
+    x[i]=M[i][3];
+    for(let j=i+1;j<3;j++) x[i]-=M[i][j]*x[j];
+    x[i]/=M[i][i];
+  }
+  return x;
 }
 
 // ═══════════════════════════════════════════════
 // CALIBRATION
 // ═══════════════════════════════════════════════
-// Positions as % of calib-area
 const CALIB_PTS=[
   [10,10],[50,10],[90,10],
   [10,50],[50,50],[90,50],
@@ -1008,7 +979,7 @@ const CALIB_PTS=[
 let calibIdx=0;
 
 function buildCalib(){
-  calibIdx=0; calibDone=false;
+  calibIdx=0; calibDone=false; calibData=[]; calibSamples=[];
   const area=document.getElementById('calib-area'); area.innerHTML='';
   CALIB_PTS.forEach(([px,py],i)=>{
     const dot=document.createElement('div');
@@ -1023,24 +994,35 @@ function buildCalib(){
 function calibratePoint(dot){
   const idx=parseInt(dot.dataset.idx);
   if(idx!==calibIdx) return;
-  if(window.webgazer&&wgActive){
+
+  // Average iris samples collected while user gazed at this dot
+  if(calibSamples.length > 0){
+    const avgGx=calibSamples.reduce((s,p)=>s+p.gx,0)/calibSamples.length;
+    const avgGy=calibSamples.reduce((s,p)=>s+p.gy,0)/calibSamples.length;
     const r=dot.getBoundingClientRect();
-    webgazer.recordScreenPosition(r.left+r.width/2,r.top+r.height/2,'click');
+    calibData.push({gx:avgGx, gy:avgGy, sx:r.left+r.width/2, sy:r.top+r.height/2});
   }
+  calibSamples=[]; // reset for next dot
+
   dot.classList.remove('active'); dot.classList.add('done');
   calibIdx++;
   updateCalibProg();
+
   if(calibIdx>=CALIB_PTS.length){
-    calibDone=true;
-    setTimeout(launchApp,500);
+    if(calibData.length >= 4){
+      gazeModel=fitModel(calibData);
+      calibDone=true;
+    }
+    setTimeout(launchApp, 500);
   } else {
     document.querySelectorAll('.calib-dot')[calibIdx]?.classList.add('active');
+    calibSamples=[];  // fresh slate
   }
 }
 
 function updateCalibProg(){
   document.getElementById('calib-progress').textContent=
-    calibIdx<CALIB_PTS.length?`Punto ${calibIdx+1} de 9`:'✓ Listo!';
+    calibIdx<CALIB_PTS.length?`Punto ${calibIdx+1} de 9`:'✓ ¡Listo!';
   document.getElementById('prog-fill').style.width=(calibIdx/CALIB_PTS.length*100)+'%';
 }
 
@@ -1058,23 +1040,27 @@ function startMouseMode(){
 // LAUNCH APP
 // ═══════════════════════════════════════════════
 function launchApp(){
-  stopFaceDetection();
   showScreen('screen-app');
   buildPads();
   if(trackingMode!=='mouse'){
     trackingMode='eye';
     setStatus('👁 Rastreando — mira para tocar',true);
-    // Move webcam back to fixed position (corner) and add app-mode class
-    document.body.classList.add('app-mode');
-    const v = document.getElementById('webgazerVideoContainer');
-    if (v) document.body.appendChild(v); // move out of slot, CSS handles sizing
+    // Shrink video to corner
+    if(videoEl){
+      videoEl.style.cssText=`
+        position:fixed;bottom:62px;right:14px;
+        width:140px;height:105px;
+        object-fit:cover;border-radius:10px;
+        border:1px solid rgba(0,245,196,0.22);
+        z-index:1000;opacity:0.75;transform:scaleX(-1);`;
+      document.body.appendChild(videoEl);
+    }
   }
 }
 
 function setStatus(text,ok){
   document.getElementById('status-text').textContent=text;
-  const d=document.getElementById('status-dot');
-  ok?d.classList.add('ok'):d.classList.remove('ok');
+  document.getElementById('status-dot').classList.toggle('ok',ok);
 }
 
 // ═══════════════════════════════════════════════
