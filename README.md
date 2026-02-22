@@ -3,7 +3,7 @@
 
 Create reference choreographies using videos and play along with your webcam or smartphone camera. This game uses MediaPipe to compare choreographies, giving you a score.
 
-**Status: Alpha version**
+**Status: Alpha version. In standby, thinking how to resolve to have high-quality reference videos. You can open an issue if you have any clue.**
 
 Demo:
 
